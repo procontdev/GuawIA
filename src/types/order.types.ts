@@ -7,7 +7,7 @@ export interface OrderItem {
 }
 
 export interface Order {
-  id: number;
+  id: string;
   code: string;
   status: OrderStatus;
   createdAt: string;

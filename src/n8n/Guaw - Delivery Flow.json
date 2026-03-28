@@ -1,0 +1,2026 @@
+{
+  "name": "Guaw - Delivery Flow",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -3280,
+        624
+      ],
+      "id": "42fc84b2-98a5-481f-a88a-67d96a9cefba",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.intent }}",
+                    "rightValue": "greeting",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "58fb138a-bddd-4107-b71b-8925fca78147"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "598de0bc-bf55-42e2-a3d1-04d1587aeafd",
+                    "leftValue": "={{ $json.intent }}",
+                    "rightValue": "menu_request",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "b1c42b92-bac8-437f-b746-44d5a4a2e704",
+                    "leftValue": "={{ $json.intent }}",
+                    "rightValue": "delivery_order",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.3,
+      "position": [
+        -2320,
+        512
+      ],
+      "id": "bc8314d7-ed9b-4b76-928f-ee4fa543811d",
+      "name": "Switch"
+    },
+    {
+      "parameters": {
+        "jsCode": "const ctx = $json.context_json ?? {};\n\nctx.flow = 'welcome';\nctx.step = 'awaiting_user_choice';\nctx.intent = $json.intent;\n\nreturn [\n  {\n    json: {\n      ...$json,\n      reply_text: `¡Hola, ${$json.customer_name}! Bienvenido a Guaw 🍜\n\nPuedo ayudarte con:\n- Ver la carta\n- Hacer tu pedido delivery\n- Brindarte información sobre eventos\n\nEscríbeme qué deseas y te ayudo.`,\n      new_flow: 'welcome',\n      new_step: 'awaiting_user_choice',\n      context_json: ctx\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        144,
+        -400
+      ],
+      "id": "6c812edc-09d1-41e1-a270-0551e6a06a51",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.telegram_chat_id }}",
+        "text": "={{ $json.reply_text }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "disable_notification": false
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1968,
+        464
+      ],
+      "id": "3bf8951c-0f0e-49a8-b515-521df7363190",
+      "name": "Send a text message",
+      "webhookId": "3f766569-fddb-47aa-824c-923cfef1263f",
+      "credentials": {
+        "telegramApi": {
+          "id": "vqVykw5wnDelB88L",
+          "name": "Telegram - Guaw Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "insert into guaw.conversation_messages (\n  conversation_id,\n  sender_type,\n  message_text,\n  structured_data\n)\nvalues (\n  '{{ $json.conversation_id }}',\n  'assistant',\n  '{{ ($json.reply_text || \"\").replace(/'/g, \"''\") }}',\n  '{{ JSON.stringify($json).replace(/'/g, \"''\") }}'::jsonb\n)\nreturning *;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1952,
+        -64
+      ],
+      "id": "db2568be-f48f-4dc1-98b7-205cb7b63b0d",
+      "name": "Save outgoing message",
+      "credentials": {
+        "postgres": {
+          "id": "GSsEb41ZiGr8tdb3",
+          "name": "Supabase Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "update guaw.conversations\nset\n  current_flow = '{{ $json.new_flow }}',\n  current_step = '{{ $json.new_step }}',\n  context_json = '{{ JSON.stringify($json.context_json).replace(/'/g, \"''\") }}'::jsonb,\n  updated_at = now()\nwhere id = '{{ $json.conversation_id }}'\nreturning *;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1968,
+        944
+      ],
+      "id": "198d8d36-42ea-402e-9414-2e292ae02a74",
+      "name": "Update conversation",
+      "credentials": {
+        "postgres": {
+          "id": "GSsEb41ZiGr8tdb3",
+          "name": "Supabase Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const ctx = $json.context_json ?? {};\n\nctx.flow = 'delivery';\nctx.step = 'awaiting_product_selection';\nctx.intent = $json.intent;\nctx.last_menu_shown_at = new Date().toISOString();\n\nconst reply = `¡Claro! Te comparto nuestra carta 🍜\n\nClásicos\n- Chaufa de Pollo — S/ 19.90\n- Chaufa de Chancho — S/ 21.90\n- Chaufa de Langostinos — S/ 23.90\n\nAchaufados\n- Chaufa Meloso — S/ 26.90\n- Chaufa Salao — S/ 26.90\n- Chaufa Picón — S/ 26.90\n\nEspeciales\n- Chi Jau Kay — S/ 28.90\n- Ti Pa Kay — S/ 28.90\n- Char Sui — S/ 28.90\n- Selvático — S/ 28.90\n- Acevichado — S/ 28.90\n- Mostrazo — S/ 28.90\n- Veggie — S/ 28.90\n\nComplementos\n- Wantix Pollo — S/ 11.90\n- Ensalada Guaw — S/ 17.90\n- Soperando — S/ 22.90\n\nBebidas\n- Agua — S/ 5.90\n- Gaseosa — S/ 5.90\n- Té Frío — S/ 6.90\n\nTambién puedes pedir Ármalo Taypá desde S/ 26.90.\n\nEscríbeme qué deseas pedir y te ayudo a armar tu orden.`;\n\nreturn [\n  {\n    json: {\n      ...$json,\n      reply_text: reply,\n      new_flow: 'delivery',\n      new_step: 'awaiting_product_selection',\n      context_json: ctx\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        144,
+        -240
+      ],
+      "id": "45e3f6dd-81cd-41c4-a4d8-bb698cb5516b",
+      "name": "Code - Require menu"
+    },
+    {
+      "parameters": {
+        "jsCode": "const text = ($json.message_text || '').toLowerCase();\n\nconst items = [\n  { code: 'chaufa_pollo', name: 'Chaufa de Pollo', price: 19.90, keywords: ['chaufa de pollo', 'pollo'] },\n  { code: 'chaufa_chancho', name: 'Chaufa de Chancho', price: 21.90, keywords: ['chaufa de chancho', 'chancho'] },\n  { code: 'chaufa_langostinos', name: 'Chaufa de Langostinos', price: 23.90, keywords: ['chaufa de langostinos', 'langostinos'] },\n  { code: 'chaufa_meloso', name: 'Chaufa Meloso', price: 26.90, keywords: ['meloso', 'chaufa meloso'] },\n  { code: 'chaufa_salao', name: 'Chaufa Salao', price: 26.90, keywords: ['salao', 'chaufa salao'] },\n  { code: 'chaufa_picon', name: 'Chaufa Picón', price: 26.90, keywords: ['picon', 'picón', 'chaufa picon', 'chaufa picón'] },\n  { code: 'chi_jau_kay', name: 'Chi Jau Kay', price: 28.90, keywords: ['chi jau kay'] },\n  { code: 'ti_pa_kay', name: 'Ti Pa Kay', price: 28.90, keywords: ['ti pa kay'] },\n  { code: 'char_sui', name: 'Char Sui', price: 28.90, keywords: ['char sui'] },\n  { code: 'selvatico', name: 'Selvático', price: 28.90, keywords: ['selvatico', 'selvático'] },\n  { code: 'acevichado', name: 'Acevichado', price: 28.90, keywords: ['acevichado'] },\n  { code: 'mostrazo', name: 'Mostrazo', price: 28.90, keywords: ['mostrazo'] },\n  { code: 'veggie', name: 'Veggie', price: 28.90, keywords: ['veggie'] },\n  { code: 'wantix_pollo', name: 'Wantix Pollo', price: 11.90, keywords: ['wantix', 'wantix pollo'] },\n  { code: 'ensalada_guaw', name: 'Ensalada Guaw', price: 17.90, keywords: ['ensalada guaw', 'ensalada'] },\n  { code: 'soperando', name: 'Soperando', price: 22.90, keywords: ['soperando'] },\n  { code: 'agua', name: 'Agua', price: 5.90, keywords: ['agua'] },\n  { code: 'gaseosa', name: 'Gaseosa', price: 5.90, keywords: ['gaseosa'] },\n  { code: 'te_frio', name: 'Té Frío', price: 6.90, keywords: ['te frio', 'té frío', 'té frio'] },\n  { code: 'taypa_armalo', name: 'Ármalo Taypá', price: 26.90, keywords: ['taypa', 'taypá', 'armalo taypa', 'ármalo taypá'] },\n];\n\nconst found = items.find(item => item.keywords.some(k => text.includes(k)));\n\nreturn [\n  {\n    json: {\n      ...$json,\n      detected_item: found || null\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        144,
+        -64
+      ],
+      "id": "9e35bd37-00ee-448b-a77b-46934a240bc9",
+      "name": "Code - Detect Product"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "8244edd9-03e9-468e-afa8-1b21b48fa390",
+              "leftValue": "={{ !!$json.detected_item }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        352,
+        160
+      ],
+      "id": "23a1497b-0f7a-4453-8384-9ef59deb1607",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "jsCode": "const ctx = $json.context_json ?? {};\nctx.flow = 'delivery';\nctx.step = 'awaiting_quantity';\nctx.intent = $json.intent;\nctx.pending_item = $json.detected_item;\n\nreturn [\n  {\n    json: {\n      ...$json,\n      reply_text: `Perfecto, agregué ${$json.detected_item.name} a tu pedido. ¿Cuántas unidades deseas?`,\n      new_flow: 'delivery',\n      new_step: 'awaiting_quantity',\n      context_json: ctx\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        608,
+        144
+      ],
+      "id": "c1b8df5b-540a-4c7a-bc20-5ee6d6a05f5d",
+      "name": "Code in JavaScript1"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.current_step }}",
+                    "rightValue": "awaiting_product_selection",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "def72743-7277-4dc0-b3d9-6b9a9ba18408"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "awaiting_product_selection"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "511a27c2-2c4c-47ca-b2b1-59a90aede5a0",
+                    "leftValue": "={{ $json.current_step }}",
+                    "rightValue": "awaiting_quantity",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "awaiting_quantity"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "7b2f60a1-5b9c-4906-9037-c2c2556ec983",
+                    "leftValue": "={{ $json.current_step }}",
+                    "rightValue": "awaiting_more_items",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "=awaiting_more_items"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "4d9f4356-74d1-4908-9270-8b0fbb6234e6",
+                    "leftValue": "={{ $json.current_step }}",
+                    "rightValue": "awaiting_customer_name",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "awaiting_customer_name"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "aa4866e4-b80b-45ff-aeb3-9b760e5f1fd4",
+                    "leftValue": "={{ $json.current_step }}",
+                    "rightValue": "awaiting_customer_phone",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "awaiting_customer_phone"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "2245b9a7-d6b7-4b5b-b9b9-14a731d939eb",
+                    "leftValue": "={{ $json.current_step }}",
+                    "rightValue": "awaiting_address",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "awaiting_address"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "93391f26-653c-41f8-948a-df11480d022d",
+                    "leftValue": "={{ $json.current_step }}",
+                    "rightValue": "awaiting_reference",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "awaiting_reference"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "e24061fd-d4f6-420b-b49f-70abf1f2841e",
+                    "leftValue": "={{ $json.current_step }}",
+                    "rightValue": "awaiting_order_confirmation",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "awaiting_order_confirmation"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "289ed518-d481-43d6-ac31-d8a214ccb265",
+                    "leftValue": "={{ $json.current_step }}",
+                    "rightValue": "awaiting_district",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "awaiting_district"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra",
+          "ignoreCase": false,
+          "renameFallbackOutput": "Default"
+        }
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.3,
+      "position": [
+        -3008,
+        496
+      ],
+      "id": "c0d170a0-28aa-402e-884e-8c63ec7f2dd7",
+      "name": "Switch Step"
+    },
+    {
+      "parameters": {
+        "jsCode": "const text = ($json.message_text || '').trim();\nconst qty = parseInt(text, 10);\n\nconst ctx = $json.context_json ?? {};\nconst pending = ctx.pending_item ?? null;\n\nif (!pending || !Number.isInteger(qty) || qty <= 0) {\n  return [\n    {\n      json: {\n        ...$json,\n        reply_text: 'Por favor indícame una cantidad válida, por ejemplo: 1, 2 o 3.',\n        new_flow: 'delivery',\n        new_step: 'awaiting_quantity',\n        context_json: ctx\n      }\n    }\n  ];\n}\n\nconst lineSubtotal = Number((pending.price * qty).toFixed(2));\n\nconst cart = Array.isArray(ctx.cart) ? ctx.cart : [];\ncart.push({\n  item_code: pending.code,\n  item_name: pending.name,\n  quantity: qty,\n  unit_price: pending.price,\n  line_subtotal: lineSubtotal,\n  configuration: null,\n  extras: []\n});\n\nctx.cart = cart;\ndelete ctx.pending_item;\nctx.flow = 'delivery';\nctx.step = 'awaiting_more_items';\nctx.intent = 'delivery_order';\n\nreturn [\n  {\n    json: {\n      ...$json,\n      reply_text: `Perfecto, agregué ${qty} ${pending.name} a tu pedido. ¿Deseas agregar algo más?`,\n      new_flow: 'delivery',\n      new_step: 'awaiting_more_items',\n      context_json: ctx\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        128,
+        112
+      ],
+      "id": "d41246b5-a4e4-46ec-81db-34879f9f8d7f",
+      "name": "Capture Quantity"
+    },
+    {
+      "parameters": {
+        "jsCode": "const text = (($json.normalized_value || $json.message_text || '') + '').trim().toLowerCase();\nconst ctx = $json.context_json ?? {};\n\nconst noWords = ['no', 'no gracias', 'eso es todo', 'nada más', 'nada mas', 'ya', 'listo'];\nconst yesWords = ['si', 'sí', 'quiero más', 'quiero mas', 'agregar', 'agregar más', 'agregar mas', 'yes'];\n\nif (noWords.some(w => text.includes(w))) {\n  ctx.flow = 'delivery';\n  ctx.step = 'awaiting_customer_name';\n  ctx.intent = 'delivery_order';\n\n  return [\n    {\n      json: {\n        ...$json,\n        reply_text: 'Perfecto. ¿A nombre de quién registramos el pedido?',\n        new_flow: 'delivery',\n        new_step: 'awaiting_customer_name',\n        context_json: ctx\n      }\n    }\n  ];\n}\n\nif (yesWords.some(w => text.includes(w)) || text === 'yes_product') {\n  ctx.flow = 'delivery';\n  ctx.step = 'awaiting_product_selection';\n  ctx.intent = 'delivery_order';\n\n  return [\n    {\n      json: {\n        ...$json,\n        reply_text: 'Perfecto. Indícame qué otro producto deseas agregar.',\n        new_flow: 'delivery',\n        new_step: 'awaiting_product_selection',\n        context_json: ctx\n      }\n    }\n  ];\n}\n\nreturn [\n  {\n    json: {\n      ...$json,\n      reply_text: '¿Deseas agregar algo más a tu pedido? Puedes responder por ejemplo: \"sí\" o \"no, eso es todo\".',\n      new_flow: 'delivery',\n      new_step: 'awaiting_more_items',\n      context_json: ctx\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        128,
+        288
+      ],
+      "id": "62dede54-00d3-425f-9726-9aa7beff4fef",
+      "name": "Handle More Items"
+    },
+    {
+      "parameters": {
+        "jsCode": "const text = ($json.message_text || '').trim();\nconst ctx = $json.context_json ?? {};\n\nif (!text || text.length < 2) {\n  return [\n    {\n      json: {\n        ...$json,\n        reply_text: 'Por favor indícame el nombre con el que registraremos el pedido.',\n        new_flow: 'delivery',\n        new_step: 'awaiting_customer_name',\n        context_json: ctx\n      }\n    }\n  ];\n}\n\nctx.customer = ctx.customer || {};\nctx.customer.name = text;\nctx.flow = 'delivery';\nctx.step = 'awaiting_customer_phone';\nctx.intent = 'delivery_order';\n\nreturn [\n  {\n    json: {\n      ...$json,\n      reply_text: `Gracias, ${text}. ¿Cuál es tu número de celular para coordinar el delivery?`,\n      new_flow: 'delivery',\n      new_step: 'awaiting_customer_phone',\n      context_json: ctx\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        128,
+        432
+      ],
+      "id": "7d320d9c-ef35-41ed-91bf-71fc6e0fd657",
+      "name": "Capture Customer Name"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Loop over input items and add a new field called 'myNewField' to the JSON of each one\nfor (const item of $input.all()) {\n  item.json.myNewField = 1;\n}const text = ($json.message_text || '').trim();\nconst ctx = $json.context_json ?? {};\n\n// Dejar solo dígitos\nconst digits = text.replace(/\\D/g, '');\n\n// Ajusta esta regla si quieres aceptar otros formatos.\n// Para Perú móvil normalmente 9 dígitos.\nconst isValid = /^\\d{9}$/.test(digits);\n\nif (!isValid) {\n  return [\n    {\n      json: {\n        ...$json,\n        reply_text: 'Por favor indícame un número válido de 9 dígitos para coordinar el delivery.',\n        new_flow: 'delivery',\n        new_step: 'awaiting_customer_phone',\n        context_json: ctx\n      }\n    }\n  ];\n}\n\nctx.customer = ctx.customer || {};\nctx.customer.phone = digits;\nctx.flow = 'delivery';\nctx.step = 'awaiting_address';\nctx.intent = 'delivery_order';\n\nreturn [\n  {\n    json: {\n      ...$json,\n      reply_text: 'Gracias. Ahora compárteme la dirección de delivery.',\n      new_flow: 'delivery',\n      new_step: 'awaiting_address',\n      context_json: ctx\n    }\n  }\n];\n\nreturn $input.all();"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        128,
+        608
+      ],
+      "id": "5db5d2b5-4941-49db-b6a4-1a82c4cf0192",
+      "name": "Capture Customer Phone"
+    },
+    {
+      "parameters": {
+        "jsCode": "const text = ($json.message_text || '').trim();\nconst ctx = $json.context_json ?? {};\n\nif (!text || text.length < 6) {\n  return [\n    {\n      json: {\n        ...$json,\n        reply_text: 'Por favor compárteme una dirección más completa para el delivery.',\n        new_flow: 'delivery',\n        new_step: 'awaiting_address',\n        context_json: ctx\n      }\n    }\n  ];\n}\n\nctx.delivery = ctx.delivery || {};\nctx.delivery.address_text = text;\nctx.flow = 'delivery';\nctx.step = 'awaiting_reference';\nctx.intent = 'delivery_order';\n\nreturn [\n  {\n    json: {\n      ...$json,\n      reply_text: 'Perfecto. ¿Tienes alguna referencia para ubicar mejor la dirección? Por ejemplo: cerca a la plaza, frente al parque o segundo piso.',\n      new_flow: 'delivery',\n      new_step: 'awaiting_reference',\n      context_json: ctx\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        128,
+        800
+      ],
+      "id": "064ae448-22ca-4422-8427-513c9ef6b610",
+      "name": "Capture Address"
+    },
+    {
+      "parameters": {
+        "jsCode": "const text = ($json.message_text || '').trim();\nconst ctx = $json.context_json ?? {};\n\nctx.delivery = ctx.delivery || {};\nctx.delivery.reference_text = text || null;\nctx.flow = 'delivery';\nctx.step = 'awaiting_district';\nctx.intent = 'delivery_order';\n\nreturn [\n  {\n    json: {\n      ...$json,\n      reply_text: 'Perfecto. Para calcular el costo de delivery, indícame tu zona o distrito.',\n      new_flow: 'delivery',\n      new_step: 'awaiting_district',\n      context_json: ctx\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        144,
+        976
+      ],
+      "id": "1de0efb8-3dd1-496c-9966-fb7811ec81bc",
+      "name": "Capture Reference"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select *\nfrom guaw.find_delivery_zone(\n  '{{ (($json.context_json.delivery.district || \"\") + \" \" + ($json.context_json.delivery.address_text || \"\") + \" \" + ($json.context_json.delivery.reference_text || \"\")).replace(/'/g, \"''\") }}'\n);",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        400,
+        976
+      ],
+      "id": "3dde5e07-b701-4fec-b429-814ab85425bd",
+      "name": "Execute a SQL query",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "GSsEb41ZiGr8tdb3",
+          "name": "Supabase Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json;\n\n// Traer también el item original desde Capture Reference\nconst prev = $('Capture Reference').first().json;\n\nconst ctx = prev.context_json ?? {};\nconst cart = Array.isArray(ctx.cart) ? ctx.cart : [];\n\nconst subtotal = Number(\n  cart.reduce((sum, item) => sum + Number(item.line_subtotal || 0), 0).toFixed(2)\n);\n\nconst deliveryFee = Number(input.delivery_fee || 0);\nconst total = Number((subtotal + deliveryFee).toFixed(2));\n\nctx.delivery = ctx.delivery || {};\nctx.delivery.zone_id = input.zone_id ?? null;\nctx.delivery.district = input.district ?? ctx.delivery.district ?? null;\nctx.delivery.delivery_fee = deliveryFee;\nctx.delivery.eta_min = input.eta_min ?? null;\nctx.delivery.eta_max = input.eta_max ?? null;\n\nctx.flow = 'delivery';\nctx.step = 'awaiting_order_confirmation';\nctx.intent = 'delivery_order';\n\nconst lines = cart.map(item =>\n  `- ${item.quantity} x ${item.item_name} — S/ ${Number(item.line_subtotal).toFixed(2)}`\n);\n\nconst reply = `Perfecto, este es el resumen de tu pedido:\n\n${lines.join('\\n')}\n\nSubtotal: S/ ${subtotal.toFixed(2)}\nDelivery: S/ ${deliveryFee.toFixed(2)}\nTotal: S/ ${total.toFixed(2)}\n\nDirección: ${ctx.delivery.address_text || '-'}\nReferencia: ${ctx.delivery.reference_text || '-'}\n\nTiempo estimado: ${ctx.delivery.eta_min ?? '-'} a ${ctx.delivery.eta_max ?? '-'} min\n\n¿Deseas confirmar tu pedido? Puedes responder: sí o no.`;\n\nreturn [\n  {\n    json: {\n      ...prev,\n      reply_text: reply,\n      new_flow: 'delivery',\n      new_step: 'awaiting_order_confirmation',\n      context_json: ctx,\n      order_summary: {\n        subtotal,\n        delivery_fee: deliveryFee,\n        total\n      }\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        896,
+        944
+      ],
+      "id": "e87f7dd1-1fb8-4fef-a850-c1ed2e4c5976",
+      "name": "Build Order Summary"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "460a0df3-0a6b-4c2c-b1c3-3417c195ce8e",
+              "leftValue": "={{ !!$json.zone_id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        592,
+        976
+      ],
+      "id": "8e7635da-9042-4ce9-a222-c3f6bb418c9b",
+      "name": "If1"
+    },
+    {
+      "parameters": {
+        "jsCode": "const prev = $('Capture Reference').first().json;\nconst ctx = prev.context_json ?? {};\n\nctx.flow = 'delivery';\nctx.step = 'awaiting_reference';\nctx.intent = 'delivery_order';\n\nreturn [\n  {\n    json: {\n      ...prev,\n      reply_text: 'No pude identificar el costo de delivery con esa dirección y referencia. ¿Podrías indicarme una referencia más clara o la zona aproximada?',\n      new_flow: 'delivery',\n      new_step: 'awaiting_reference',\n      context_json: ctx\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        896,
+        1120
+      ],
+      "id": "9d95ccbd-864d-415a-856f-af42f1e5d9d9",
+      "name": "Delivery Zone Not Found"
+    },
+    {
+      "parameters": {
+        "jsCode": "const text = ($json.message_text || '').trim().toLowerCase();\nconst ctx = $json.context_json ?? {};\n\nconst yesWords = ['si', 'sí', 'ok', 'confirmar', 'confirmo', 'dale', 'acepto'];\nconst noWords = ['no', 'cancelar', 'cancela', 'aun no', 'aún no'];\n\nif (yesWords.some(w => text.includes(w))) {\n  ctx.flow = 'delivery';\n  ctx.step = 'completed';\n  ctx.intent = 'delivery_order';\n\n  return [\n    {\n      json: {\n        ...$json,\n        confirmation_result: 'confirmed',\n        reply_text: `¡Perfecto! Tu pedido ha sido confirmado.\n\nEn breve comenzaremos a prepararlo. Tiempo estimado de entrega: ${ctx.delivery?.eta_min ?? '-'} a ${ctx.delivery?.eta_max ?? '-'} minutos.\n\nSi necesitas algo más, estoy aquí para ayudarte.`,\n        new_flow: 'delivery',\n        new_step: 'completed',\n        context_json: ctx\n      }\n    }\n  ];\n}\n\nif (noWords.some(w => text.includes(w))) {\n  ctx.flow = 'delivery';\n  ctx.step = 'awaiting_product_selection';\n  ctx.intent = 'delivery_order';\n\n  return [\n    {\n      json: {\n        ...$json,\n        confirmation_result: 'rejected',\n        reply_text: 'Entendido. Indícame qué deseas cambiar o qué otro producto deseas agregar.',\n        new_flow: 'delivery',\n        new_step: 'awaiting_product_selection',\n        context_json: ctx\n      }\n    }\n  ];\n}\n\nreturn [\n  {\n    json: {\n      ...$json,\n      confirmation_result: 'unknown',\n      reply_text: 'Por favor respóndeme si deseas confirmar tu pedido con un \"sí\" o \"no\".',\n      new_flow: 'delivery',\n      new_step: 'awaiting_order_confirmation',\n      context_json: ctx\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        144,
+        1184
+      ],
+      "id": "ff544661-4513-400a-b518-7290942895aa",
+      "name": "Handle Order Confirmation"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c16e4746-1056-4138-9004-958653d5ffd3",
+              "leftValue": "={{ $json.confirmation_result }}",
+              "rightValue": "confirmed",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        400,
+        1184
+      ],
+      "id": "355b7068-c1bb-4e3f-aa55-8742cc9f265e",
+      "name": "If2"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "insert into guaw.orders (\n  customer_id,\n  conversation_id,\n  channel,\n  order_status,\n  delivery_type,\n  address_text,\n  district,\n  reference_text,\n  zone_id,\n  subtotal,\n  delivery_fee,\n  total_amount,\n  estimated_minutes_min,\n  estimated_minutes_max,\n  customer_notes,\n  requested_at\n)\nvalues (\n  '{{ $json.customer_id }}',\n  '{{ $json.conversation_id }}',\n  '{{ $json.channel }}',\n  'confirmed',\n  'delivery',\n  '{{ (($json.context_json.delivery?.address_text) || \"\").replace(/'/g, \"''\") }}',\n  {{ $json.context_json.delivery?.district ? \"'\" + $json.context_json.delivery.district.replace(/'/g, \"''\") + \"'\" : 'null' }},\n  {{ $json.context_json.delivery?.reference_text ? \"'\" + $json.context_json.delivery.reference_text.replace(/'/g, \"''\") + \"'\" : 'null' }},\n  {{ $json.context_json.delivery?.zone_id ? \"'\" + $json.context_json.delivery.zone_id + \"'\" : 'null' }},\n  {{ Number($json.order_summary?.subtotal || 0) }},\n  {{ Number($json.order_summary?.delivery_fee || 0) }},\n  {{ Number($json.order_summary?.total || 0) }},\n  {{ $json.context_json.delivery?.eta_min ?? 'null' }},\n  {{ $json.context_json.delivery?.eta_max ?? 'null' }},\n  null,\n  now()\n)\nreturning *;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        624,
+        1328
+      ],
+      "id": "b9abf4ac-03f9-4afa-82ab-be2ae4a3bf11",
+      "name": "Create Order",
+      "credentials": {
+        "postgres": {
+          "id": "GSsEb41ZiGr8tdb3",
+          "name": "Supabase Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const order = $json;\nconst prev = $('Handle Order Confirmation').first().json;\nconst cart = prev.context_json?.cart || [];\n\nreturn cart.map(item => ({\n  json: {\n    order_id: order.id,\n    item_code: item.item_code,\n    item_name: item.item_name,\n    quantity: item.quantity,\n    unit_price: item.unit_price,\n    line_subtotal: item.line_subtotal,\n    configuration: item.configuration || null,\n    extras: item.extras || []\n  }\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        832,
+        1328
+      ],
+      "id": "b20adcf6-111d-4bbf-86e3-7408a2c94564",
+      "name": "Prepare Order Items"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "insert into guaw.order_items (\n  order_id,\n  item_id,\n  item_name_snapshot,\n  unit_price,\n  quantity,\n  line_subtotal,\n  configuration_json,\n  notes\n)\nselect\n  '{{ $json.order_id }}',\n  mi.id,\n  '{{ ($json.item_name || \"\").replace(/'/g, \"''\") }}',\n  {{ Number($json.unit_price || 0) }},\n  {{ Number($json.quantity || 1) }},\n  {{ Number($json.line_subtotal || 0) }},\n  {{ $json.configuration ? \"'\" + JSON.stringify($json.configuration).replace(/'/g, \"''\") + \"'::jsonb\" : \"'{}'::jsonb\" }},\n  null\nfrom guaw.menu_items mi\nwhere mi.code = '{{ $json.item_code }}'\nreturning *;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1040,
+        1328
+      ],
+      "id": "9dc17066-a6da-46a6-9154-4ab4563d295a",
+      "name": "Insert Order Item",
+      "credentials": {
+        "postgres": {
+          "id": "GSsEb41ZiGr8tdb3",
+          "name": "Supabase Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const text = ($json.message_text || '').trim();\nconst ctx = $json.context_json ?? {};\n\nif (!text || text.length < 2) {\n  return [\n    {\n      json: {\n        ...$json,\n        reply_text: 'Por favor indícame tu zona o distrito para calcular el delivery.',\n        new_flow: 'delivery',\n        new_step: 'awaiting_district',\n        context_json: ctx\n      }\n    }\n  ];\n}\n\nctx.delivery = ctx.delivery || {};\nctx.delivery.district = text;\nctx.flow = 'delivery';\nctx.step = 'awaiting_delivery_validation';\nctx.intent = 'delivery_order';\n\nreturn [\n  {\n    json: {\n      ...$json,\n      reply_text: 'Gracias. Voy a calcular el costo de delivery y te muestro el resumen de tu pedido.',\n      new_flow: 'delivery',\n      new_step: 'awaiting_delivery_validation',\n      context_json: ctx\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        144,
+        1408
+      ],
+      "id": "95103284-6a4a-4cab-994b-f5cc0c4dc538",
+      "name": "Capture District"
+    },
+    {
+      "parameters": {
+        "jsCode": "const prev = $('When Executed by Another Workflow').first().json;\nconst ctx = prev.context_json ?? {};\nconst cart = Array.isArray(ctx.cart) ? ctx.cart : [];\n\nconst subtotal = Number(\n  cart.reduce((sum, item) => sum + Number(item.line_subtotal || 0), 0).toFixed(2)\n);\n\nconst deliveryFee = 10.00;\nconst total = Number((subtotal + deliveryFee).toFixed(2));\n\nctx.delivery = ctx.delivery || {};\nctx.delivery.zone_id = null;\nctx.delivery.delivery_fee = deliveryFee;\nctx.delivery.eta_min = 45;\nctx.delivery.eta_max = 60;\n\nctx.flow = 'delivery';\nctx.step = 'awaiting_order_confirmation';\nctx.intent = 'delivery_order';\n\nconst lines = cart.map(item =>\n  `- ${item.quantity} x ${item.item_name} — S/ ${Number(item.line_subtotal).toFixed(2)}`\n);\n\nconst reply = `Perfecto, este es el resumen de tu pedido:\n\n${lines.join('\\n')}\n\nSubtotal: S/ ${subtotal.toFixed(2)}\nDelivery: S/ ${deliveryFee.toFixed(2)}\nTotal: S/ ${total.toFixed(2)}\n\nDirección: ${ctx.delivery.address_text || '-'}\nReferencia: ${ctx.delivery.reference_text || '-'}\nZona/Distrito: ${ctx.delivery.district || '-'}\n\nTiempo estimado: ${ctx.delivery.eta_min} a ${ctx.delivery.eta_max} min\n\n¿Deseas confirmar tu pedido? Puedes responder: sí o no.`;\n\nreturn [\n  {\n    json: {\n      ...prev,\n      reply_text: reply,\n      new_flow: 'delivery',\n      new_step: 'awaiting_order_confirmation',\n      context_json: ctx,\n      order_summary: {\n        subtotal,\n        delivery_fee: deliveryFee,\n        total\n      }\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        1568
+      ],
+      "id": "25af79e7-fde4-4e65-9e1f-3c8644c641cf",
+      "name": "Fallback Delivery"
+    },
+    {
+      "parameters": {
+        "jsCode": "const ctx = $json.context_json ?? {};\n\nctx.flow = 'delivery';\nctx.step = 'awaiting_product_selection';\nctx.intent = 'delivery_order';\n\nreturn [\n  {\n    json: {\n      ...$json,\n      reply_text: 'No encontré ese producto en la carta. Puedo ayudarte con opciones como Chaufa de Pollo, Chaufa de Chancho, Chaufa de Langostinos, Chaufa Meloso, Chaufa Salao, Chaufa Picón, Mostrazo, Acevichado, Veggie o Ármalo Taypá. ¿Cuál deseas pedir?',\n      new_flow: 'delivery',\n      new_step: 'awaiting_product_selection',\n      context_json: ctx\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        560,
+        352
+      ],
+      "id": "47f3be0d-74f8-42d1-9ff1-0555f5be08c0",
+      "name": "Product Not Found"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "fb74087d-2c0a-4c04-9a23-47081a609995",
+              "leftValue": false,
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -2256,
+        960
+      ],
+      "id": "f1079b75-42a5-4c2e-af62-0e82778c7721",
+      "name": "If FAQ/Product matched?"
+    },
+    {
+      "parameters": {
+        "jsCode": "const ctx = $json.context_json ?? {};\n\nconst reply = `${$json.faq_answer}\n\nSi deseas, continuamos con tu pedido. ${$json.reprompt_text}`;\n\nreturn [{\n  json: {\n    ...$json,\n    reply_text: reply,\n    new_flow: $json.new_flow || 'delivery',\n    new_step: $json.new_step || $json.current_step,\n    context_json: ctx\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1792,
+        832
+      ],
+      "id": "dab015a3-6100-4f0f-9e52-e97b25ae8f81",
+      "name": "Reply FAQ/Product - Delivery"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.message_text }}",
+        "options": {
+          "systemMessage": "Eres un validador conversacional para el flujo delivery de Guaw.\n\nDebes analizar el mensaje del usuario dentro de un flujo guiado y responder únicamente JSON válido.\n\nDatos:\n- flow: {{ $json.current_flow }}\n- current_step: {{ $json.current_step }}\n- message_text: {{ $json.message_text }}\n\nTu tarea:\n1. Decide si el mensaje es:\n   - valid_answer\n   - side_question\n   - change_topic\n   - unclear\n\n2. Devuelve también:\n   - target_step: el step actual al que pertenece la evaluación\n   - normalized_value: el valor normalizado si aplica\n   - answer_to_user: solo si kind es side_question, unclear o change_topic\n   - reason: una razón breve interna\n\nReglas por step:\n\n1. awaiting_product_selection\n- Espera un producto o selección de pedido.\n- Si el mensaje menciona un producto del menú, es valid_answer.\n- Si el mensaje es una pregunta sobre un producto, ingredientes, cómo funciona un plato o delivery, es side_question.\n- Si el usuario solo expresa intención general (\"quiero pedir\", \"quiero hacer un pedido\"), puede considerarse valid_answer con normalized_value=\"start_order\".\n- Si cambia a eventos, es change_topic.\n\n2. awaiting_more_items\n- Espera una respuesta como sí / no / eso es todo / agregar algo más.\n- Si el usuario responde afirmando que quiere agregar más, normalized_value debe ser \"yes\".\n- Si responde que no desea más, normalized_value debe ser \"no\".\n- Si el usuario hace una pregunta sobre otro producto o el menú, es side_question.\n- Si menciona directamente otro producto del menú, puede considerarse valid_answer con normalized_value=\"yes_product\".\n\n3. awaiting_customer_name\n- Espera un nombre.\n- Si el usuario hace una pregunta sobre delivery o menú, es side_question.\n\n4. awaiting_customer_phone\n- Espera un teléfono.\n- Si es posible, normaliza dejando solo dígitos.\n\n5. awaiting_address\n- Espera una dirección.\n\n6. awaiting_reference\n- Espera una referencia.\n\n7. awaiting_district\n- Espera una zona o distrito.\n\n8. awaiting_order_confirmation\n- Espera sí / no.\n- Normaliza a \"yes\" o \"no\".\n\nInformación útil del servicio:\n- Ármalo Taypá es una opción configurable desde S/ 26.90. Se elige una proteína, hasta 4 verduras o frutas y una salsa. Puede llevar extras.\n- El costo de delivery depende de la zona o distrito; para la demo puede usarse una tarifa referencial si no se identifica la zona.\n- El tiempo estimado de entrega suele manejarse de forma referencial.\n\nResponde exactamente con este formato:\n\n{\n  \"kind\": \"valid_answer\",\n  \"target_step\": \"awaiting_more_items\",\n  \"normalized_value\": null,\n  \"answer_to_user\": null,\n  \"reason\": \"\"\n}\n\nValores permitidos para kind:\n- valid_answer\n- side_question\n- change_topic\n- unclear\n\nNo agregues texto fuera del JSON."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        -1792,
+        976
+      ],
+      "id": "995fe334-6bb5-49d8-be41-155997319919",
+      "name": "LLM Guard - Delivery"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4.1-mini"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        -1120,
+        656
+      ],
+      "id": "66e74158-24b3-4fbc-9285-10857cea6c3a",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "XdONAnsf5xq3X8h3",
+          "name": "OpenAi account - Foe"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $json.output ?? $json.text ?? '';\n\nlet parsed;\n\ntry {\n  parsed = JSON.parse(raw);\n} catch (e) {\n  parsed = {\n    kind: 'unclear',\n    target_step: null,\n    normalized_value: null,\n    answer_to_user: 'No logré interpretar bien tu respuesta. ¿Podrías intentarlo nuevamente?',\n    reason: 'No se pudo parsear la respuesta del guard.'\n  };\n}\n\nreturn [{ json: parsed }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1376,
+        976
+      ],
+      "id": "55b3a0f5-c132-4a5a-9c01-fad9a1e770bc",
+      "name": "Parse Guard JSON - Delivery"
+    },
+    {
+      "parameters": {
+        "jsCode": "const original = $('When Executed by Another Workflow').first().json;\nconst guard = $('Parse Guard JSON - Delivery').first().json;\nconst ctx = original.context_json ?? {};\nconst step = original.current_step;\n\nfunction reprompt(stepName) {\n  switch (stepName) {\n    case 'awaiting_product_selection':\n      return '¿Cuál deseas pedir?';\n    case 'awaiting_more_items':\n      return '¿Deseas agregar algo más a tu pedido?';\n    case 'awaiting_customer_name':\n      return '¿A nombre de quién registramos el pedido?';\n    case 'awaiting_customer_phone':\n      return '¿Cuál es tu número de celular para coordinar el delivery?';\n    case 'awaiting_address':\n      return 'Ahora compárteme la dirección de delivery.';\n    case 'awaiting_reference':\n      return '¿Tienes alguna referencia para ubicar mejor la dirección?';\n    case 'awaiting_district':\n      return 'Indícame tu zona o distrito para calcular el delivery.';\n    case 'awaiting_order_confirmation':\n      return '¿Deseas confirmar tu pedido? Puedes responder: sí o no.';\n    default:\n      return 'Continuemos con tu pedido.';\n  }\n}\n\nconst reply = `${guard.answer_to_user || 'Claro, te ayudo con esa duda.'}\n\nSi deseas, continuamos con tu pedido. ${reprompt(step)}`;\n\nreturn [{\n  json: {\n    ...original,\n    reply_text: reply,\n    new_flow: original.current_flow,\n    new_step: step,\n    context_json: ctx\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -528,
+        848
+      ],
+      "id": "769be7db-b207-4230-a04e-082a67689a99",
+      "name": "Reply Side Question - Delivery1"
+    },
+    {
+      "parameters": {
+        "jsCode": "const original = $('When Executed by Another Workflow').first().json;\nconst guard = $('Parse Guard JSON - Delivery').first().json;\nconst ctx = original.context_json ?? {};\nconst step = original.current_step;\n\nfunction reprompt(stepName) {\n  switch (stepName) {\n    case 'awaiting_product_selection':\n      return 'Indícame qué producto deseas pedir.';\n    case 'awaiting_more_items':\n      return '¿Deseas agregar algo más a tu pedido? Puedes responder: sí o no.';\n    case 'awaiting_customer_name':\n      return '¿A nombre de quién registramos el pedido?';\n    case 'awaiting_customer_phone':\n      return 'Indícame un número de celular válido para coordinar el delivery.';\n    case 'awaiting_address':\n      return 'Por favor compárteme una dirección más completa para el delivery.';\n    case 'awaiting_reference':\n      return 'Por favor indícame una referencia para ubicar mejor la dirección.';\n    case 'awaiting_district':\n      return 'Por favor indícame tu zona o distrito.';\n    case 'awaiting_order_confirmation':\n      return 'Por favor respóndeme si deseas confirmar tu pedido con un \"sí\" o \"no\".';\n    default:\n      return '¿Podrías responder nuevamente?';\n  }\n}\n\nreturn [{\n  json: {\n    ...original,\n    reply_text: guard.answer_to_user || reprompt(step),\n    new_flow: original.current_flow,\n    new_step: step,\n    context_json: ctx\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -528,
+        1248
+      ],
+      "id": "50ddc654-d1f3-4f06-ac0b-2b8c48c28581",
+      "name": "Reply Ask Again - Delivery"
+    },
+    {
+      "parameters": {
+        "jsCode": "const original = $('When Executed by Another Workflow').first().json;\nconst guard = $('Parse Guard JSON - Delivery').first().json;\nconst ctx = original.context_json ?? {};\n\nreturn [{\n  json: {\n    ...original,\n    reply_text: guard.answer_to_user || 'Claro. Si deseas cambiar de tema, también puedo ayudarte con eventos o con la carta.',\n    new_flow: original.current_flow,\n    new_step: original.current_step,\n    context_json: ctx\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -528,
+        1040
+      ],
+      "id": "e7f8c661-52f8-4e60-85d3-f0aba4cdf4dd",
+      "name": "Reply Change Topic - Delivery"
+    },
+    {
+      "parameters": {
+        "jsCode": "const original = $('When Executed by Another Workflow').first().json;\nconst text = (original.message_text || '').trim().toLowerCase();\nconst ctx = original.context_json ?? {};\nconst currentStep = original.current_step || 'awaiting_more_items';\n\nfunction reprompt(step) {\n  switch (step) {\n    case 'awaiting_more_items':\n      return '¿Deseas agregar algo más a tu pedido? Puedes responder por ejemplo: \"sí\" o \"no, eso es todo\".';\n    case 'awaiting_product_selection':\n      return '¿Cuál deseas pedir?';\n    case 'awaiting_customer_name':\n      return '¿A nombre de quién registramos el pedido?';\n    case 'awaiting_customer_phone':\n      return '¿Cuál es tu número de celular para coordinar el delivery?';\n    case 'awaiting_address':\n      return 'Ahora compárteme la dirección de delivery.';\n    case 'awaiting_order_confirmation':\n      return '¿Deseas confirmar tu pedido? Puedes responder: sí o no.';\n    default:\n      return 'Continuemos con tu pedido.';\n  }\n}\n\nlet faqKey = null;\nlet faqAnswer = null;\n\n// Taypá\nif (text.includes('taypa') || text.includes('taypá') || text.includes('armalo taypa') || text.includes('ármalo taypá')) {\n  faqKey = 'taypa_info';\n  faqAnswer = 'Ármalo Taypá es una opción configurable desde S/ 26.90. Puedes elegir una proteína, hasta 4 verduras o frutas y una salsa. También puedes agregar extras adicionales.';\n}\n\n// Preguntas sobre delivery\nelse if (text.includes('delivery') || text.includes('costo de delivery') || text.includes('cuanto cuesta el delivery') || text.includes('cuánto cuesta el delivery')) {\n  faqKey = 'delivery_info';\n  faqAnswer = 'El costo de delivery se calcula según la zona o distrito y, para la demo, si no se identifica la zona se aplica una tarifa referencial.';\n}\n\n// Preguntas sobre tiempo\nelse if (text.includes('cuanto demora') || text.includes('cuánto demora') || text.includes('tiempo de entrega') || text.includes('cuanto tarda') || text.includes('cuánto tarda')) {\n  faqKey = 'eta_info';\n  faqAnswer = 'El tiempo estimado de entrega depende de la zona. Para la demo normalmente manejamos una referencia de 45 a 60 minutos.';\n}\n\nreturn [{\n  json: {\n    ...original,\n    faq_matched: !!faqKey,\n    faq_key: faqKey,\n    faq_answer: faqAnswer,\n    reprompt_text: reprompt(currentStep),\n    new_flow: original.current_flow,\n    new_step: currentStep,\n    context_json: ctx\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2432,
+        960
+      ],
+      "id": "a5a6fb44-5e36-4fe6-910c-94eb9a337c0a",
+      "name": "FAQ Interceptor - Delivery"
+    },
+    {
+      "parameters": {
+        "jsCode": "const original = $('When Executed by Another Workflow').first().json;\nconst guard = $('Parse Guard JSON - Delivery').first().json;\n\nconst ctx = original.context_json ?? {};\nconst step = guard.target_step || original.current_step;\nconst value = guard.normalized_value;\n\nlet reply_text = '';\nlet new_step = step;\nlet apply_action = 'reply_now';\n\nswitch (step) {\n  case 'awaiting_product_selection':\n    if (value === 'start_order') {\n      ctx.flow = 'delivery';\n      ctx.step = 'awaiting_product_selection';\n      ctx.intent = 'delivery_order';\n\n      reply_text = '¡Claro! Te ayudo con tu pedido. Puedes elegir opciones como Chaufa de Pollo, Chaufa de Chancho, Chaufa de Langostinos, Chaufa Meloso, Chaufa Salao, Chaufa Picón, Mostrazo, Acevichado, Veggie o Ármalo Taypá. ¿Cuál deseas pedir?';\n      new_step = 'awaiting_product_selection';\n      apply_action = 'reply_now';\n    } else {\n      apply_action = 'detect_product';\n    }\n    break;\n\n  case 'awaiting_more_items':\n    if (value === 'yes' || value === 'yes_product') {\n      ctx.flow = 'delivery';\n      ctx.step = 'awaiting_product_selection';\n      ctx.intent = 'delivery_order';\n\n      reply_text = 'Perfecto. Indícame qué otro producto deseas agregar.';\n      new_step = 'awaiting_product_selection';\n      apply_action = 'reply_now';\n    } else if (value === 'no') {\n      ctx.flow = 'delivery';\n      ctx.step = 'awaiting_customer_name';\n      ctx.intent = 'delivery_order';\n\n      reply_text = 'Perfecto. ¿A nombre de quién registramos el pedido?';\n      new_step = 'awaiting_customer_name';\n      apply_action = 'reply_now';\n    } else {\n      ctx.flow = 'delivery';\n      ctx.step = 'awaiting_more_items';\n      ctx.intent = 'delivery_order';\n\n      reply_text = '¿Deseas agregar algo más a tu pedido? Puedes responder por ejemplo: \"sí\" o \"no, eso es todo\".';\n      new_step = 'awaiting_more_items';\n      apply_action = 'reply_now';\n    }\n    break;\n\n  default:\n    apply_action = 'reply_now';\n    reply_text = 'Continuemos con tu pedido.';\n    break;\n}\n\nreturn [{\n  json: {\n    ...original,\n    normalized_value: value,\n    guard_kind: guard.kind,\n    target_step: step,\n    apply_action,\n    reply_text,\n    new_flow: 'delivery',\n    new_step,\n    context_json: ctx\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -784,
+        528
+      ],
+      "id": "1918118d-388f-41b0-8b87-bd48dd5bd136",
+      "name": "Apply Delivery Guard Result"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.kind }}",
+                    "rightValue": "valid_answer",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "bf709e61-5752-4de2-9045-1cd8d1ea9a56"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "valid_answer"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "c7a28fc4-7340-48cf-991c-0b8b3ab0281e",
+                    "leftValue": "={{ $json.kind }}",
+                    "rightValue": "=side_question",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "side_question"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "b9a8b19f-18ad-4389-a588-ec3fe3a96069",
+                    "leftValue": "={{ $json.kind }}",
+                    "rightValue": "=change_topic",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "change_topic"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "71eac158-c986-48d9-ad56-b33b5ca58a25",
+                    "leftValue": "={{ $json.kind }}",
+                    "rightValue": "unclear",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "unclear"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.3,
+      "position": [
+        -1088,
+        944
+      ],
+      "id": "ad74646a-ee99-4940-bb3b-ca45cff482e5",
+      "name": "Switch Guard Kind - Delivery"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.apply_action }}",
+                    "rightValue": "=reply_now",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "24386153-229c-4b28-9da6-641fb77e5035"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "reply_now"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "1d9fd508-a34e-4f09-8abe-b876305060c0",
+                    "leftValue": "={{ $json.apply_action }}",
+                    "rightValue": "=detect_product",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "detect_product"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.3,
+      "position": [
+        -576,
+        528
+      ],
+      "id": "10dc461e-9398-44d1-b016-e24966918141",
+      "name": "Switch Apply Result"
+    }
+  ],
+  "pinData": {
+    "When Executed by Another Workflow": [
+      {
+        "json": {
+          "intent": "context_reply",
+          "context_reply": "1",
+          "entities": {},
+          "message_text": "quiero hacer un pedido",
+          "telegram_chat_id": "1376481410",
+          "customer_name": "Ramiro",
+          "customer_id": "b3209565-80ee-46cd-9a24-92c90566d2d8",
+          "current_flow": "delivery",
+          "current_step": "awaiting_more_items",
+          "context_json": {
+            "cart": [
+              {
+                "extras": [],
+                "quantity": 2,
+                "item_code": "chaufa_pollo",
+                "item_name": "Chaufa de Pollo",
+                "unit_price": 19.9,
+                "configuration": null,
+                "line_subtotal": 39.8
+              },
+              {
+                "extras": [],
+                "quantity": 1,
+                "item_code": "soperando",
+                "item_name": "Soperando",
+                "unit_price": 22.9,
+                "configuration": null,
+                "line_subtotal": 22.9
+              },
+              {
+                "extras": [],
+                "quantity": 1,
+                "item_code": "chaufa_pollo",
+                "item_name": "Chaufa de Pollo",
+                "unit_price": 19.9,
+                "configuration": null,
+                "line_subtotal": 19.9
+              },
+              {
+                "extras": [],
+                "quantity": 1,
+                "item_code": "ti_pa_kay",
+                "item_name": "Ti Pa Kay",
+                "unit_price": 28.9,
+                "configuration": null,
+                "line_subtotal": 28.9
+              },
+              {
+                "extras": [],
+                "quantity": 1,
+                "item_code": "chaufa_langostinos",
+                "item_name": "Chaufa de Langostinos",
+                "unit_price": 23.9,
+                "configuration": null,
+                "line_subtotal": 23.9
+              }
+            ],
+            "flow": "delivery",
+            "step": "awaiting_more_items",
+            "intent": "delivery_order",
+            "customer": {
+              "name": "Carlos Hernandez",
+              "phone": "968457474"
+            },
+            "delivery": {
+              "eta_max": 60,
+              "eta_min": 45,
+              "zone_id": null,
+              "district": null,
+              "address_text": "Jiron Grau 320 magdalena",
+              "delivery_fee": 10,
+              "reference_text": "magdalena del mar"
+            },
+            "event_request": {
+              "email": null,
+              "notes": "como complemento wantix esta bien",
+              "phone": "985474141",
+              "event_date": "2026-04-27",
+              "event_time": null,
+              "event_type": null,
+              "budget_range": null,
+              "contact_name": "Christopher Berenz",
+              "location_text": "Magdalena",
+              "attendee_count": 8,
+              "event_date_raw": "27/04/2026",
+              "selected_chaufa": "chaufa_aeropuerto",
+              "selected_chaufa_text": "Aeropuerto"
+            },
+            "last_menu_shown_at": "2026-03-28T04:03:49.816Z",
+            "last_summary_shown_at": null
+          },
+          "conversation_id": "0d93e31b-3000-42f1-b531-3b14fd691b81",
+          "channel": "telegram"
+        }
+      }
+    ]
+  },
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Switch Step",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Code - Require menu",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Code - Detect Product",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Send a text message",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Save outgoing message",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Update conversation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send a text message": {
+      "main": [
+        []
+      ]
+    },
+    "Save outgoing message": {
+      "main": [
+        []
+      ]
+    },
+    "Code - Detect Product": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Product Not Found",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript1": {
+      "main": [
+        [
+          {
+            "node": "Send a text message",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Save outgoing message",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Update conversation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Require menu": {
+      "main": [
+        [
+          {
+            "node": "Send a text message",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Save outgoing message",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Update conversation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch Step": {
+      "main": [
+        [
+          {
+            "node": "FAQ Interceptor - Delivery",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Capture Quantity",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "FAQ Interceptor - Delivery",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Capture Customer Name",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Capture Customer Phone",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Capture Address",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Capture Reference",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Handle Order Confirmation",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Capture District",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Capture Quantity": {
+      "main": [
+        [
+          {
+            "node": "Send a text message",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Save outgoing message",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Update conversation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Handle More Items": {
+      "main": [
+        [
+          {
+            "node": "Send a text message",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Update conversation",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Save outgoing message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Capture Customer Name": {
+      "main": [
+        [
+          {
+            "node": "Send a text message",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Update conversation",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Save outgoing message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Capture Customer Phone": {
+      "main": [
+        [
+          {
+            "node": "Send a text message",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Update conversation",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Save outgoing message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Capture Address": {
+      "main": [
+        [
+          {
+            "node": "Update conversation",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Send a text message",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Save outgoing message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Capture Reference": {
+      "main": [
+        [
+          {
+            "node": "Execute a SQL query",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute a SQL query": {
+      "main": [
+        [
+          {
+            "node": "If1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Order Summary": {
+      "main": [
+        [
+          {
+            "node": "Update conversation",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Send a text message",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Save outgoing message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If1": {
+      "main": [
+        [
+          {
+            "node": "Build Order Summary",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fallback Delivery",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Delivery Zone Not Found": {
+      "main": [
+        [
+          {
+            "node": "Update conversation",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Send a text message",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Save outgoing message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Handle Order Confirmation": {
+      "main": [
+        [
+          {
+            "node": "If2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If2": {
+      "main": [
+        [
+          {
+            "node": "Create Order",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Update conversation",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Send a text message",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Save outgoing message",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Update conversation",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Send a text message",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Save outgoing message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Order": {
+      "main": [
+        [
+          {
+            "node": "Prepare Order Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Order Items": {
+      "main": [
+        [
+          {
+            "node": "Insert Order Item",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Order Item": {
+      "main": [
+        []
+      ]
+    },
+    "Capture District": {
+      "main": [
+        [
+          {
+            "node": "Update conversation",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Send a text message",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Save outgoing message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fallback Delivery": {
+      "main": [
+        [
+          {
+            "node": "Update conversation",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Send a text message",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Save outgoing message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Product Not Found": {
+      "main": [
+        [
+          {
+            "node": "Save outgoing message",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Send a text message",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Update conversation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If FAQ/Product matched?": {
+      "main": [
+        [
+          {
+            "node": "Reply FAQ/Product - Delivery",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "LLM Guard - Delivery",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "LLM Guard - Delivery",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM Guard - Delivery": {
+      "main": [
+        [
+          {
+            "node": "Parse Guard JSON - Delivery",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Guard JSON - Delivery": {
+      "main": [
+        [
+          {
+            "node": "Switch Guard Kind - Delivery",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "FAQ Interceptor - Delivery": {
+      "main": [
+        [
+          {
+            "node": "If FAQ/Product matched?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reply Ask Again - Delivery": {
+      "main": [
+        [
+          {
+            "node": "Save outgoing message",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Send a text message",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Update conversation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apply Delivery Guard Result": {
+      "main": [
+        [
+          {
+            "node": "Switch Apply Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reply FAQ/Product - Delivery": {
+      "main": [
+        [
+          {
+            "node": "Send a text message",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Update conversation",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Save outgoing message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch Guard Kind - Delivery": {
+      "main": [
+        [
+          {
+            "node": "Apply Delivery Guard Result",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reply Side Question - Delivery1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reply Change Topic - Delivery",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reply Ask Again - Delivery",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reply Side Question - Delivery1": {
+      "main": [
+        [
+          {
+            "node": "Save outgoing message",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Send a text message",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Update conversation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reply Change Topic - Delivery": {
+      "main": [
+        [
+          {
+            "node": "Save outgoing message",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Send a text message",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Update conversation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch Apply Result": {
+      "main": [
+        [
+          {
+            "node": "Save outgoing message",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Send a text message",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Update conversation",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Code - Detect Product",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "5231534a-7105-4ce3-9563-e8111fdb7741",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "de8396c057c90157b11f4f4209f784d788086afd909604db9bce09a14132efbd"
+  },
+  "id": "f2Qn8eMvBACxEb04",
+  "tags": []
+}

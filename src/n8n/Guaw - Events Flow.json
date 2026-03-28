@@ -1,0 +1,1221 @@
+{
+  "name": "Guaw - Events Flow",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "jsonExample",
+        "jsonExample": "{\n  \"intent\": \"event_info\",\n  \"confidence\": 0.95,\n  \"entities\": {},\n  \"message_text\": \"atienden eventos?\",\n  \"channel\": \"telegram\",\n  \"telegram_chat_id\": \"1376481410\",\n  \"customer_name\": \"Ramiro\",\n  \"customer_id\": \"uuid\",\n  \"current_flow\": null,\n  \"current_step\": \"start\",\n  \"context_json\": {},\n  \"conversation_id\": \"uuid\"\n}"
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -992,
+        -480
+      ],
+      "id": "1438e016-eb83-4387-b8a9-e202e01fefee",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.current_step }}",
+                    "rightValue": "=awaiting_event_contact_name",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "87055e9c-f9e3-477b-971b-393674943684"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "awaiting_event_contact_name"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "1c7eceb1-65f6-42e2-a1b8-6f0eb5b5f3d1",
+                    "leftValue": "={{ $json.current_step }}",
+                    "rightValue": "=awaiting_event_phone",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "awaiting_event_phone"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "6498cd18-b190-4ecb-a9ae-4a67a0c23ec6",
+                    "leftValue": "={{ $json.current_step }}",
+                    "rightValue": "=awaiting_event_guest_count",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "awaiting_event_guest_count"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "6d5eb1a6-ca2e-4e44-93b5-9d9aad8fd376",
+                    "leftValue": "={{ $json.current_step }}",
+                    "rightValue": "=awaiting_event_date",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "awaiting_event_date"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "91763e5a-dac4-45c7-a1bd-8e4c885c3bf7",
+                    "leftValue": "={{ $json.current_step }}",
+                    "rightValue": "awaiting_event_location",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "awaiting_event_location"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "8a7ca5ef-4c4a-406b-a566-f1a7d0f98eba",
+                    "leftValue": "={{ $json.current_step }}",
+                    "rightValue": "=awaiting_event_chaufa_choice",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "awaiting_event_chaufa_choice"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "c9bd8b29-35ca-48d8-9e24-1c144b02bff5",
+                    "leftValue": "={{ $json.current_step }}",
+                    "rightValue": "=awaiting_event_notes",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "awaiting_event_notes"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "15de489d-54e0-40e3-8ab0-e151647f4c8b",
+                    "leftValue": "={{ $json.current_step }}",
+                    "rightValue": "awaiting_event_confirmation",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "awaiting_event_confirmation"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.3,
+      "position": [
+        -752,
+        -592
+      ],
+      "id": "604f9148-df75-4bb0-ae9d-c2859c8a2569",
+      "name": "Switch Step - Events"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.intent }}",
+                    "rightValue": "event_info",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "f389076d-220c-43eb-bb62-0f0aba8b0a2e"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "event_info"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "d3e93eba-16fb-43a8-ab4f-f824fca456ca",
+                    "leftValue": "={{ $json.intent }}",
+                    "rightValue": "event_lead",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "event_lead"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.3,
+      "position": [
+        -128,
+        128
+      ],
+      "id": "cfe19667-a6ca-4a5f-ab50-df14f3b67817",
+      "name": "Switch Intent - Events"
+    },
+    {
+      "parameters": {
+        "jsCode": "const ctx = $json.context_json ?? {};\n\nctx.flow = 'events';\nctx.step = 'awaiting_event_contact_name';\nctx.intent = 'event_lead';\nctx.event_request = ctx.event_request || {};\n\nconst reply = `Sí, atendemos eventos con experiencia wok en vivo 🍜\n\nIncluimos normalmente:\n- Maestros wokeros\n- Cocinas boca de dragón y woks\n- Mesas de trabajo\n- Equipos y utensilios\n- Envases y cubiertos descartables ecológicos\n\nComo referencia:\n- Chaufa Clásico desde S/ 13.90 por persona\n- Chaufa Aeropuerto desde S/ 15.90 por persona\n- Wantix como complemento desde S/ 2.40 por unidad\n\nEl transporte se cotiza aparte.\n\nSi deseas, puedo registrar tu solicitud para que el equipo comercial te contacte. ¿A nombre de quién registramos la solicitud?`;\n\nreturn [\n  {\n    json: {\n      ...$json,\n      reply_text: reply,\n      new_flow: 'events',\n      new_step: 'awaiting_event_contact_name',\n      context_json: ctx\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        272,
+        128
+      ],
+      "id": "59b9bb8d-d376-4820-be6f-d5ef2e99c61d",
+      "name": "Event Intro"
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.telegram_chat_id }}",
+        "text": "={{ $json.reply_text }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "disable_notification": false
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1472,
+        -288
+      ],
+      "id": "23be5a04-b711-446b-a986-d5a755ede08a",
+      "name": "Send a text message",
+      "webhookId": "3f766569-fddb-47aa-824c-923cfef1263f",
+      "credentials": {
+        "telegramApi": {
+          "id": "vqVykw5wnDelB88L",
+          "name": "Telegram - Guaw Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "insert into guaw.conversation_messages (\n  conversation_id,\n  sender_type,\n  message_text,\n  structured_data\n)\nvalues (\n  '{{ $json.conversation_id }}',\n  'assistant',\n  '{{ ($json.reply_text || \"\").replace(/'/g, \"''\") }}',\n  '{{ JSON.stringify($json).replace(/'/g, \"''\") }}'::jsonb\n)\nreturning *;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1456,
+        -480
+      ],
+      "id": "396caea3-6484-49c9-8043-735a62ec186a",
+      "name": "Save outgoing message",
+      "credentials": {
+        "postgres": {
+          "id": "GSsEb41ZiGr8tdb3",
+          "name": "Supabase Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "update guaw.conversations\nset\n  current_flow = '{{ $json.new_flow }}',\n  current_step = '{{ $json.new_step }}',\n  context_json = '{{ JSON.stringify($json.context_json).replace(/'/g, \"''\") }}'::jsonb,\n  updated_at = now()\nwhere id = '{{ $json.conversation_id }}'\nreturning *;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1472,
+        -96
+      ],
+      "id": "d538ab2f-0e18-45d3-bf7a-f0475a871cbb",
+      "name": "Update conversation",
+      "credentials": {
+        "postgres": {
+          "id": "GSsEb41ZiGr8tdb3",
+          "name": "Supabase Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const text = ($json.message_text || '').trim();\nconst ctx = $json.context_json ?? {};\n\nif (!text || text.length < 2) {\n  return [{\n    json: {\n      ...$json,\n      reply_text: 'Por favor indícame el nombre del contacto para registrar la solicitud.',\n      new_flow: 'events',\n      new_step: 'awaiting_event_contact_name',\n      context_json: ctx\n    }\n  }];\n}\n\nctx.flow = 'events';\nctx.step = 'awaiting_event_phone';\nctx.intent = 'event_lead';\nctx.event_request = ctx.event_request || {};\nctx.event_request.contact_name = text;\n\nreturn [{\n  json: {\n    ...$json,\n    reply_text: `Gracias, ${text}. ¿Cuál es tu número de contacto?`,\n    new_flow: 'events',\n    new_step: 'awaiting_event_phone',\n    context_json: ctx\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1952,
+        -848
+      ],
+      "id": "062d2994-7dd3-4c90-9766-7d53924947a2",
+      "name": "Capture Event Contact Name"
+    },
+    {
+      "parameters": {
+        "jsCode": "const text = ($json.message_text || '').trim();\nconst digits = text.replace(/\\D/g, '');\nconst ctx = $json.context_json ?? {};\n\nif (!/^\\d{9}$/.test(digits)) {\n  return [{\n    json: {\n      ...$json,\n      reply_text: 'Por favor indícame un número válido de 9 dígitos.',\n      new_flow: 'events',\n      new_step: 'awaiting_event_phone',\n      context_json: ctx\n    }\n  }];\n}\n\nctx.flow = 'events';\nctx.step = 'awaiting_event_guest_count';\nctx.intent = 'event_lead';\nctx.event_request = ctx.event_request || {};\nctx.event_request.phone = digits;\n\nreturn [{\n  json: {\n    ...$json,\n    reply_text: 'Perfecto. ¿Para cuántas personas sería el evento?',\n    new_flow: 'events',\n    new_step: 'awaiting_event_guest_count',\n    context_json: ctx\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1952,
+        -640
+      ],
+      "id": "d33c9ebf-d51b-455c-b4a6-588ea54484c4",
+      "name": "Capture Event Phone"
+    },
+    {
+      "parameters": {
+        "jsCode": "const text = ($json.message_text || '').trim();\nconst qty = parseInt(text.replace(/\\D/g, ''), 10);\nconst ctx = $json.context_json ?? {};\n\nif (!Number.isInteger(qty) || qty <= 0) {\n  return [{\n    json: {\n      ...$json,\n      reply_text: 'Por favor indícame una cantidad válida de asistentes.',\n      new_flow: 'events',\n      new_step: 'awaiting_event_guest_count',\n      context_json: ctx\n    }\n  }];\n}\n\nctx.flow = 'events';\nctx.step = 'awaiting_event_date';\nctx.intent = 'event_lead';\nctx.event_request = ctx.event_request || {};\nctx.event_request.attendee_count = qty;\n\nreturn [{\n  json: {\n    ...$json,\n    reply_text: 'Gracias. ¿Cuál es la fecha del evento?',\n    new_flow: 'events',\n    new_step: 'awaiting_event_date',\n    context_json: ctx\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1952,
+        -448
+      ],
+      "id": "757344f4-44e2-44f2-84ba-b1f5f0a3c981",
+      "name": "Capture Event Guest Count"
+    },
+    {
+      "parameters": {
+        "jsCode": "const text = ($json.message_text || '').trim();\nconst ctx = $json.context_json ?? {};\n\nfunction normalizeDate(input) {\n  const value = input.trim();\n\n  // YYYY-MM-DD\n  let m = value.match(/^(\\d{4})-(\\d{2})-(\\d{2})$/);\n  if (m) {\n    const [, y, mo, d] = m;\n    const iso = `${y}-${mo}-${d}`;\n    const dt = new Date(`${iso}T00:00:00`);\n    if (!isNaN(dt.getTime()) && dt.getUTCFullYear() === Number(y) && dt.getUTCMonth() + 1 === Number(mo) && dt.getUTCDate() === Number(d)) {\n      return iso;\n    }\n  }\n\n  // DD/MM/YYYY o DD-MM-YYYY\n  m = value.match(/^(\\d{2})[\\/-](\\d{2})[\\/-](\\d{4})$/);\n  if (m) {\n    const [, d, mo, y] = m;\n    const iso = `${y}-${mo}-${d}`;\n    const dt = new Date(`${iso}T00:00:00`);\n    if (!isNaN(dt.getTime()) && dt.getUTCFullYear() === Number(y) && dt.getUTCMonth() + 1 === Number(mo) && dt.getUTCDate() === Number(d)) {\n      return iso;\n    }\n  }\n\n  return null;\n}\n\nconst normalizedDate = normalizeDate(text);\n\nif (!normalizedDate) {\n  return [{\n    json: {\n      ...$json,\n      reply_text: 'Por favor indícame la fecha del evento en formato válido. Ejemplo: 2026-04-22 o 22/04/2026.',\n      new_flow: 'events',\n      new_step: 'awaiting_event_date',\n      context_json: ctx\n    }\n  }];\n}\n\nctx.flow = 'events';\nctx.step = 'awaiting_event_location';\nctx.intent = 'event_lead';\nctx.event_request = ctx.event_request || {};\nctx.event_request.event_date = normalizedDate;\nctx.event_request.event_date_raw = text;\n\nreturn [{\n  json: {\n    ...$json,\n    reply_text: 'Perfecto. ¿Dónde se realizará el evento?',\n    new_flow: 'events',\n    new_step: 'awaiting_event_location',\n    context_json: ctx\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1952,
+        -240
+      ],
+      "id": "5b354aec-ab29-4d71-8a1e-c36d6bbe5c06",
+      "name": "Capture Event Date"
+    },
+    {
+      "parameters": {
+        "jsCode": "const text = ($json.message_text || '').trim();\nconst ctx = $json.context_json ?? {};\n\nif (!text || text.length < 4) {\n  return [{\n    json: {\n      ...$json,\n      reply_text: 'Por favor indícame la ubicación del evento.',\n      new_flow: 'events',\n      new_step: 'awaiting_event_location',\n      context_json: ctx\n    }\n  }];\n}\n\nctx.flow = 'events';\nctx.step = 'awaiting_event_chaufa_choice';\nctx.intent = 'event_lead';\nctx.event_request = ctx.event_request || {};\nctx.event_request.location_text = text;\n\nreturn [{\n  json: {\n    ...$json,\n    reply_text: 'Gracias. ¿Qué opción te interesa más para el evento: Chaufa Clásico, Chaufa Aeropuerto o aún no lo tienes definido?',\n    new_flow: 'events',\n    new_step: 'awaiting_event_chaufa_choice',\n    context_json: ctx\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1952,
+        -64
+      ],
+      "id": "caadf64e-ecf4-4881-88d7-c65f5e0ae6ec",
+      "name": "Capture Event Location"
+    },
+    {
+      "parameters": {
+        "jsCode": "const text = ($json.message_text || '').trim();\nconst lower = text.toLowerCase();\nconst ctx = $json.context_json ?? {};\n\nlet choice = 'por_definir';\nif (lower.includes('clasico') || lower.includes('clásico')) choice = 'chaufa_clasico';\nif (lower.includes('aeropuerto')) choice = 'chaufa_aeropuerto';\n\nctx.flow = 'events';\nctx.step = 'awaiting_event_notes';\nctx.intent = 'event_lead';\nctx.event_request = ctx.event_request || {};\nctx.event_request.selected_chaufa = choice;\nctx.event_request.selected_chaufa_text = text;\n\nreturn [{\n  json: {\n    ...$json,\n    reply_text: 'Perfecto. ¿Deseas agregar alguna observación adicional? Por ejemplo horario, complemento como wantix, tipo de evento o algún requerimiento especial. Si no, puedes responder \"no\".',\n    new_flow: 'events',\n    new_step: 'awaiting_event_notes',\n    context_json: ctx\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1952,
+        96
+      ],
+      "id": "2a725b9f-a059-41ac-882a-42b6a831ad03",
+      "name": "Capture Event Chaufa Choice"
+    },
+    {
+      "parameters": {
+        "jsCode": "const text = ($json.message_text || '').trim();\nconst ctx = $json.context_json ?? {};\n\nctx.flow = 'events';\nctx.step = 'awaiting_event_confirmation';\nctx.intent = 'event_lead';\nctx.event_request = ctx.event_request || {};\nctx.event_request.notes = /^no$/i.test(text) ? null : text;\n\nconst er = ctx.event_request || {};\n\nconst reply = `Perfecto, este es el resumen de tu solicitud:\n\nNombre: ${er.contact_name || '-'}\nTeléfono: ${er.phone || '-'}\nAsistentes: ${er.attendee_count || '-'}\nFecha: ${er.event_date || '-'}\nUbicación: ${er.location_text || '-'}\nOpción de chaufa: ${er.selected_chaufa_text || 'Por definir'}\nObservaciones: ${er.notes || '-'}\n\n¿Deseas confirmar el registro de esta solicitud? Puedes responder: sí o no.`;\n\nreturn [{\n  json: {\n    ...$json,\n    reply_text: reply,\n    new_flow: 'events',\n    new_step: 'awaiting_event_confirmation',\n    context_json: ctx\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1952,
+        288
+      ],
+      "id": "f0754a72-122c-40ed-871c-974225304a24",
+      "name": "Capture Event Notes"
+    },
+    {
+      "parameters": {
+        "jsCode": "const text = ($json.message_text || '').trim().toLowerCase();\nconst ctx = $json.context_json ?? {};\n\nconst yesWords = ['si', 'sí', 'ok', 'confirmar', 'confirmo', 'dale'];\nconst noWords = ['no', 'cancelar', 'aun no', 'aún no'];\n\nif (yesWords.some(w => text.includes(w))) {\n  ctx.flow = 'events';\n  ctx.step = 'event_lead_registered';\n  ctx.intent = 'event_lead';\n\n  return [{\n    json: {\n      ...$json,\n      event_confirmation_result: 'confirmed',\n      reply_text: '¡Perfecto! Tu solicitud fue registrada. El equipo comercial de Guaw te contactará para continuar con la propuesta y disponibilidad.',\n      new_flow: 'events',\n      new_step: 'event_lead_registered',\n      context_json: ctx\n    }\n  }];\n}\n\nif (noWords.some(w => text.includes(w))) {\n  ctx.flow = 'events';\n  ctx.step = 'awaiting_event_contact_name';\n  ctx.intent = 'event_lead';\n\n  return [{\n    json: {\n      ...$json,\n      event_confirmation_result: 'rejected',\n      reply_text: 'Entendido. Si deseas, puedo volver a registrar la solicitud desde cero. ¿A nombre de quién la registramos?',\n      new_flow: 'events',\n      new_step: 'awaiting_event_contact_name',\n      context_json: ctx\n    }\n  }];\n}\n\nreturn [{\n  json: {\n    ...$json,\n    event_confirmation_result: 'unknown',\n    reply_text: 'Por favor respóndeme si deseas confirmar la solicitud con un \"sí\" o \"no\".',\n    new_flow: 'events',\n    new_step: 'awaiting_event_confirmation',\n    context_json: ctx\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -144,
+        -64
+      ],
+      "id": "0c6ae119-0119-495e-9936-6eea84129a86",
+      "name": "Handle Event Confirmation"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "4de9dab3-4474-4297-a37d-82ec657165cc",
+              "leftValue": "={{ $json.event_confirmation_result }}",
+              "rightValue": "confirmed",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        32,
+        -208
+      ],
+      "id": "284d2ce8-13c6-4e2a-b129-232b7603ed6e",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "insert into guaw.event_leads (\n  customer_id,\n  conversation_id,\n  channel,\n  contact_name,\n  phone,\n  event_type,\n  event_date,\n  event_time,\n  attendee_count,\n  location_text,\n  notes,\n  status\n)\nvalues (\n  '{{ $json.customer_id }}',\n  '{{ $json.conversation_id }}',\n  '{{ $json.channel }}',\n  '{{ (($json.context_json.event_request?.contact_name) || \"\").replace(/'/g, \"''\") }}',\n  '{{ (($json.context_json.event_request?.phone) || \"\").replace(/'/g, \"''\") }}',\n  'evento',\n  {{ $json.context_json.event_request?.event_date ? \"'\" + String($json.context_json.event_request.event_date).replace(/'/g, \"''\") + \"'\" : 'null' }},\n  null,\n  {{ Number($json.context_json.event_request?.attendee_count || 0) }},\n  '{{ (($json.context_json.event_request?.location_text) || \"\").replace(/'/g, \"''\") }}',\n  {{ $json.context_json.event_request?.notes ? \"'\" + String($json.context_json.event_request.notes).replace(/'/g, \"''\") + \"'\" : 'null' }},\n  'new'\n)\nreturning *;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        336,
+        -224
+      ],
+      "id": "4276ee14-2b97-4c42-ac3b-dbd76c1aa56d",
+      "name": "Create Event Lead",
+      "credentials": {
+        "postgres": {
+          "id": "GSsEb41ZiGr8tdb3",
+          "name": "Supabase Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.message_text }}",
+        "options": {
+          "systemMessage": "=Eres un validador conversacional para el flujo de eventos de Guaw.\n\nDebes analizar el mensaje del usuario dentro de un flujo guiado y responder únicamente JSON válido.\n\nHechos disponibles sobre eventos Guaw:\n- Se solicita un adelanto del 50% para asegurar la fecha.\n- El saldo restante se abona hasta 24 horas antes del evento.\n- Si el pago se realiza desde otro banco, se recomienda hacerlo con 1 día útil de anticipación.\n- La reserva se recomienda con al menos 2 semanas de anticipación.\n- La propuesta tiene validez de 30 días.\n- Transporte no incluido en el precio base.\n- Chaufa Clásico desde S/ 13.90 por persona.\n- Chaufa Aeropuerto desde S/ 15.90 por persona.\n- Wantix desde S/ 2.40 por unidad.\n\nDatos:\n- flow: {{ $json.current_flow }}\n- current_step: {{ $json.current_step }}\n- message_text: {{ $json.message_text }}\n\nTu tarea:\n1. Decide si el mensaje es:\n   - valid_answer\n   - side_question\n   - change_topic\n   - unclear\n\n2. Devuelve también:\n   - target_step: el step actual al que pertenece la evaluación\n   - normalized_value: el valor normalizado si aplica\n   - answer_to_user: solo si kind es side_question, unclear o change_topic\n   - reason: una razón breve interna\n\nReglas por step:\n\n1. awaiting_event_contact_name\n- Espera un nombre de persona o contacto.\n- Si el mensaje parece una pregunta sobre pagos, condiciones, transporte, tiempos, reserva, cancelación o lo que incluye el servicio, es side_question.\n\n2. awaiting_event_phone\n- Espera un número de teléfono.\n- Si el usuario escribe texto que no parece teléfono y es una pregunta, es side_question.\n- Si parece teléfono, normalízalo dejando solo dígitos.\n\n3. awaiting_event_guest_count\n- Espera un número de asistentes.\n- Si el usuario escribe algo como \"120 personas\", normaliza a \"120\".\n\n4. awaiting_event_date\n- Espera una fecha válida.\n- Acepta y normaliza formatos:\n  - DD/MM/YYYY\n  - DD-MM-YYYY\n  - YYYY-MM-DD\n- Devuelve siempre YYYY-MM-DD si es posible.\n\n5. awaiting_event_location\n- Espera un lugar o ubicación del evento.\n\n6. awaiting_event_chaufa_choice\n- Espera una opción tipo:\n  - chaufa_clasico\n  - chaufa_aeropuerto\n  - por_definir\n- Si el usuario dice \"clásico\" o \"chaufa clásico\", normaliza a \"chaufa_clasico\".\n- Si dice \"aeropuerto\", normaliza a \"chaufa_aeropuerto\".\n- Si no está decidido, normaliza a \"por_definir\".\n- Si responde algo como \"la experiencia wok en vivo\", puede considerarse por_definir si no corresponde a una opción concreta.\n\n7. awaiting_event_notes\n- Espera observaciones o \"no\".\n- Si responde \"no\", normalized_value debe ser \"no\".\n\nSi el usuario cambia de tema hacia delivery o carta, devuelve kind=\"change_topic\".\n\nSi kind = \"side_question\":\n- NO hagas una pregunta de confirmación como \"¿Quieres que te explique?\".\n- Responde la duda directamente en answer_to_user.\n- Luego, en el mismo answer_to_user, vuelve a pedir el dato pendiente del step actual.\n- Mantén el mismo target_step.\n\nSi current_step = awaiting_event_contact_name y el usuario dice:\n\"¿con cuánto debo hacer el adelanto?\"\n\nLa salida correcta es:\n\n{\n  \"kind\": \"side_question\",\n  \"target_step\": \"awaiting_event_contact_name\",\n  \"normalized_value\": null,\n  \"answer_to_user\": \"Para reservar el servicio normalmente se solicita un adelanto del 50% del total cotizado y el saldo restante se cancela hasta 24 horas antes del evento. Si el pago se hace desde otro banco, lo ideal es realizarlo con un día útil de anticipación. Si deseas, continuamos con tu solicitud. ¿A nombre de quién registramos la solicitud?\",\n  \"reason\": \"El usuario hizo una pregunta lateral sobre condiciones de pago y no respondió con el nombre.\"\n}\n\nFormato de salida obligatorio:\n\n{\n  \"kind\": \"valid_answer\",\n  \"target_step\": \"awaiting_event_contact_name\",\n  \"normalized_value\": null,\n  \"answer_to_user\": null,\n  \"reason\": \"\"\n}\n\nValores permitidos para kind:\n- valid_answer\n- side_question\n- change_topic\n- unclear\n\nNo agregues texto fuera del JSON."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        160,
+        -496
+      ],
+      "id": "3f441d0f-41f4-4f20-9f66-76cc3cbf5625",
+      "name": "LLM Guard"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4.1-mini"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        -160,
+        -384
+      ],
+      "id": "2e55ae34-cea6-46a3-b2e7-8d20173a82a3",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "XdONAnsf5xq3X8h3",
+          "name": "OpenAi account - Foe"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $json.output ?? $json.text ?? '';\n\nlet parsed;\n\ntry {\n  parsed = JSON.parse(raw);\n} catch (e) {\n  parsed = {\n    kind: 'unclear',\n    target_step: null,\n    normalized_value: null,\n    answer_to_user: 'No logré interpretar tu respuesta. ¿Podrías intentarlo nuevamente?',\n    reason: 'No se pudo parsear la respuesta del guard.'\n  };\n}\n\nreturn [{ json: parsed }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -32,
+        -752
+      ],
+      "id": "fecdbf77-5f16-459b-b7d8-522f035d1c39",
+      "name": "Parse Guard JSON"
+    },
+    {
+      "parameters": {
+        "jsCode": "const original = $('When Executed by Another Workflow').first().json;\nconst guard = $json;\nconst ctx = original.context_json ?? {};\n\nreturn [\n  {\n    json: {\n      ...original,\n      reply_text: guard.answer_to_user || 'Claro, te ayudo con esa duda. Luego continuamos con el dato pendiente.',\n      new_flow: original.current_flow,\n      new_step: original.current_step,\n      context_json: ctx\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        800,
+        -752
+      ],
+      "id": "27f44003-fe17-40f6-97d1-7bcf02059ce5",
+      "name": "Reply Side Question"
+    },
+    {
+      "parameters": {
+        "jsCode": "const original = $('When Executed by Another Workflow').first().json;\nconst guard = $('Parse Guard JSON').first().json;\n\nconst ctx = original.context_json ?? {};\nctx.event_request = ctx.event_request || {};\nctx.flow = 'events';\nctx.intent = 'event_lead';\n\nconst step = guard.target_step || original.current_step;\nconst value = guard.normalized_value;\n\nlet reply_text = '';\nlet new_step = step;\n\nswitch (step) {\n  case 'awaiting_event_contact_name':\n    ctx.event_request.contact_name = value;\n    new_step = 'awaiting_event_phone';\n    reply_text = `Gracias, ${value}. ¿Cuál es tu número de contacto?`;\n    break;\n\n  case 'awaiting_event_phone':\n    ctx.event_request.phone = value;\n    new_step = 'awaiting_event_guest_count';\n    reply_text = 'Perfecto. ¿Para cuántas personas sería el evento?';\n    break;\n\n  case 'awaiting_event_guest_count':\n    ctx.event_request.attendee_count = Number(value);\n    new_step = 'awaiting_event_date';\n    reply_text = 'Gracias. ¿Cuál es la fecha del evento? Puedes escribirla como 2026-04-22 o 22/04/2026.';\n    break;\n\n  case 'awaiting_event_date':\n    ctx.event_request.event_date = value;\n    ctx.event_request.event_date_raw = original.message_text;\n    new_step = 'awaiting_event_location';\n    reply_text = 'Perfecto. ¿Dónde se realizará el evento?';\n    break;\n\n  case 'awaiting_event_location':\n    ctx.event_request.location_text = value;\n    new_step = 'awaiting_event_chaufa_choice';\n    reply_text = 'Gracias. ¿Qué opción te interesa más para el evento: Chaufa Clásico, Chaufa Aeropuerto o aún no lo tienes definido?';\n    break;\n\n  case 'awaiting_event_chaufa_choice':\n    ctx.event_request.selected_chaufa = value;\n    ctx.event_request.selected_chaufa_text = original.message_text;\n    new_step = 'awaiting_event_notes';\n    reply_text = 'Perfecto. ¿Deseas agregar alguna observación adicional? Por ejemplo horario, complemento como wantix, tipo de evento o algún requerimiento especial. Si no, puedes responder \"no\".';\n    break;\n\n  case 'awaiting_event_notes':\n    ctx.event_request.notes = String(value || '').toLowerCase() === 'no' ? null : value;\n    new_step = 'awaiting_event_confirmation';\n\n    const er = ctx.event_request || {};\n    reply_text = `Perfecto, este es el resumen de tu solicitud:\n\nNombre: ${er.contact_name || '-'}\nTeléfono: ${er.phone || '-'}\nAsistentes: ${er.attendee_count || '-'}\nFecha: ${er.event_date || '-'}\nUbicación: ${er.location_text || '-'}\nOpción de chaufa: ${er.selected_chaufa_text || 'Por definir'}\nObservaciones: ${er.notes || '-'}\n\n¿Deseas confirmar el registro de esta solicitud? Puedes responder: sí o no.`;\n    break;\n\n  default:\n    reply_text = 'Continuemos con tu solicitud.';\n    new_step = step;\n    break;\n}\n\nctx.step = new_step;\n\nreturn [{\n  json: {\n    ...original,\n    reply_text,\n    new_flow: 'events',\n    new_step,\n    context_json: ctx\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        464,
+        -896
+      ],
+      "id": "ba4988f1-088d-4299-b571-37ace8e0caee",
+      "name": "Apply Event Step Value"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.kind }}",
+                    "rightValue": "=valid_answer",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "f952a885-7cf1-4eca-a2a2-7e08a0d954ff"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "valid_answer"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "6fbb9e88-fdc6-42a6-92ce-3be80966c2af",
+                    "leftValue": "={{ $json.kind }}",
+                    "rightValue": "side_question",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "side_question"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "c8180201-c2af-460c-b248-232ee4b91e1c",
+                    "leftValue": "={{ $json.kind }}",
+                    "rightValue": "={{ $json.kind }}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "change_topic"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "bb805a05-d4c6-4124-aafc-925e53a72a32",
+                    "leftValue": "={{ $json.kind }}",
+                    "rightValue": "=unclear",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "unclear"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.3,
+      "position": [
+        160,
+        -784
+      ],
+      "id": "d10cd889-20bf-4520-87b0-5e5d82393fbc",
+      "name": "Switch Guard Kind"
+    },
+    {
+      "parameters": {
+        "jsCode": "const original = $('When Executed by Another Workflow').first().json;\nconst guard = $('Parse Guard JSON - Events').first().json;\nconst ctx = original.context_json ?? {};\n\nreturn [{\n  json: {\n    ...original,\n    reply_text: guard.answer_to_user || 'No logré identificar bien tu respuesta. ¿Podrías intentarlo nuevamente?',\n    new_flow: 'events',\n    new_step: original.current_step,\n    context_json: ctx\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        464,
+        -576
+      ],
+      "id": "1ae12415-428f-4ce5-bf40-46152b7f96d5",
+      "name": "Reply Ask Again - Events"
+    },
+    {
+      "parameters": {
+        "jsCode": "const original = $('When Executed by Another Workflow').first().json;\nconst guard = $('Parse Guard JSON').first().json;\nconst ctx = original.context_json ?? {};\n\nreturn [{\n  json: {\n    ...original,\n    reply_text: guard.answer_to_user || 'Claro. Si deseas cambiar de tema, también puedo ayudarte con delivery o con más información del servicio.',\n    new_flow: 'events',\n    new_step: original.current_step,\n    context_json: ctx\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        464,
+        -736
+      ],
+      "id": "977bbe55-f061-4790-9000-4239dbdbe2b4",
+      "name": "Reply Change Topic - Events"
+    },
+    {
+      "parameters": {
+        "jsCode": "const original = $('When Executed by Another Workflow').first().json;\nconst text = (original.message_text || '').trim().toLowerCase();\nconst ctx = original.context_json ?? {};\nconst currentStep = original.current_step || 'awaiting_more_items';\n\nfunction reprompt(step) {\n  switch (step) {\n    case 'awaiting_more_items':\n      return '¿Deseas agregar algo más a tu pedido? Puedes responder por ejemplo: \"sí\" o \"no, eso es todo\".';\n    case 'awaiting_product_selection':\n      return '¿Cuál deseas pedir?';\n    case 'awaiting_customer_name':\n      return '¿A nombre de quién registramos el pedido?';\n    case 'awaiting_customer_phone':\n      return '¿Cuál es tu número de celular para coordinar el delivery?';\n    case 'awaiting_address':\n      return 'Ahora compárteme la dirección de delivery.';\n    case 'awaiting_order_confirmation':\n      return '¿Deseas confirmar tu pedido? Puedes responder: sí o no.';\n    default:\n      return 'Continuemos con tu pedido.';\n  }\n}\n\nlet faqKey = null;\nlet faqAnswer = null;\n\n// Taypá\nif (text.includes('taypa') || text.includes('taypá') || text.includes('armalo taypa') || text.includes('ármalo taypá')) {\n  faqKey = 'taypa_info';\n  faqAnswer = 'Ármalo Taypá es una opción configurable desde S/ 26.90. Puedes elegir una proteína, hasta 4 verduras o frutas y una salsa. También puedes agregar extras adicionales.';\n}\n\n// Preguntas sobre delivery\nelse if (text.includes('delivery') || text.includes('costo de delivery') || text.includes('cuanto cuesta el delivery') || text.includes('cuánto cuesta el delivery')) {\n  faqKey = 'delivery_info';\n  faqAnswer = 'El costo de delivery se calcula según la zona o distrito y, para la demo, si no se identifica la zona se aplica una tarifa referencial.';\n}\n\n// Preguntas sobre tiempo\nelse if (text.includes('cuanto demora') || text.includes('cuánto demora') || text.includes('tiempo de entrega') || text.includes('cuanto tarda') || text.includes('cuánto tarda')) {\n  faqKey = 'eta_info';\n  faqAnswer = 'El tiempo estimado de entrega depende de la zona. Para la demo normalmente manejamos una referencia de 45 a 60 minutos.';\n}\n\nreturn [{\n  json: {\n    ...original,\n    faq_matched: !!faqKey,\n    faq_key: faqKey,\n    faq_answer: faqAnswer,\n    reprompt_text: reprompt(currentStep),\n    new_flow: original.current_flow,\n    new_step: currentStep,\n    context_json: ctx\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1104,
+        -736
+      ],
+      "id": "28ae50a9-b59b-409f-ad86-669fdda12eec",
+      "name": "FAQ / Product Interceptor - Delivery"
+    }
+  ],
+  "pinData": {
+    "When Executed by Another Workflow": [
+      {
+        "json": {
+          "intent": "context_reply",
+          "confidence": 0,
+          "entities": {},
+          "message_text": "si por favor",
+          "channel": "telegram",
+          "telegram_chat_id": "1376481410",
+          "customer_name": "Ramiro",
+          "customer_id": "b3209565-80ee-46cd-9a24-92c90566d2d8",
+          "current_flow": "events",
+          "current_step": "awaiting_event_contact_name",
+          "context_json": {
+            "cart": [
+              {
+                "extras": [],
+                "quantity": 2,
+                "item_code": "chaufa_pollo",
+                "item_name": "Chaufa de Pollo",
+                "unit_price": 19.9,
+                "configuration": null,
+                "line_subtotal": 39.8
+              },
+              {
+                "extras": [],
+                "quantity": 1,
+                "item_code": "soperando",
+                "item_name": "Soperando",
+                "unit_price": 22.9,
+                "configuration": null,
+                "line_subtotal": 22.9
+              },
+              {
+                "extras": [],
+                "quantity": 1,
+                "item_code": "chaufa_pollo",
+                "item_name": "Chaufa de Pollo",
+                "unit_price": 19.9,
+                "configuration": null,
+                "line_subtotal": 19.9
+              },
+              {
+                "extras": [],
+                "quantity": 1,
+                "item_code": "ti_pa_kay",
+                "item_name": "Ti Pa Kay",
+                "unit_price": 28.9,
+                "configuration": null,
+                "line_subtotal": 28.9
+              }
+            ],
+            "flow": "events",
+            "step": "awaiting_event_contact_name",
+            "intent": "event_lead",
+            "customer": {
+              "name": "Carlos Hernandez",
+              "phone": "968457474"
+            },
+            "delivery": {
+              "eta_max": 60,
+              "eta_min": 45,
+              "zone_id": null,
+              "district": null,
+              "address_text": "Jiron Grau 320 magdalena",
+              "delivery_fee": 10,
+              "reference_text": "magdalena del mar"
+            },
+            "event_request": {
+              "email": null,
+              "notes": "tipo de evento: cena a partir de las 8pm",
+              "phone": "992113692",
+              "event_date": "2026-04-25",
+              "event_time": null,
+              "event_type": null,
+              "budget_range": null,
+              "contact_name": "y como es el pago, hay que hacer un adelanto?",
+              "location_text": "miraflores",
+              "attendee_count": 25,
+              "event_date_raw": "25/04/2026",
+              "selected_chaufa": "por_definir",
+              "selected_chaufa_text": "aun no lo tengo definido"
+            },
+            "last_menu_shown_at": "2026-03-28T04:03:49.816Z",
+            "last_summary_shown_at": null
+          },
+          "conversation_id": "0d93e31b-3000-42f1-b531-3b14fd691b81"
+        }
+      }
+    ]
+  },
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Switch Step - Events",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch Step - Events": {
+      "main": [
+        [
+          {
+            "node": "LLM Guard",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "LLM Guard",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "LLM Guard",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "LLM Guard",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "LLM Guard",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "LLM Guard",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "LLM Guard",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Handle Event Confirmation",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Switch Intent - Events",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch Intent - Events": {
+      "main": [
+        [
+          {
+            "node": "Event Intro",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Event Intro",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Event Intro": {
+      "main": [
+        [
+          {
+            "node": "Save outgoing message",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Send a text message",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Update conversation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Capture Event Contact Name": {
+      "main": [
+        []
+      ]
+    },
+    "Capture Event Phone": {
+      "main": [
+        []
+      ]
+    },
+    "Capture Event Guest Count": {
+      "main": [
+        []
+      ]
+    },
+    "Capture Event Date": {
+      "main": [
+        []
+      ]
+    },
+    "Capture Event Location": {
+      "main": [
+        []
+      ]
+    },
+    "Capture Event Chaufa Choice": {
+      "main": [
+        []
+      ]
+    },
+    "Capture Event Notes": {
+      "main": [
+        []
+      ]
+    },
+    "Handle Event Confirmation": {
+      "main": [
+        [
+          {
+            "node": "Send a text message",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Save outgoing message",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Update conversation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Create Event Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM Guard": {
+      "main": [
+        [
+          {
+            "node": "Parse Guard JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "LLM Guard",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Guard JSON": {
+      "main": [
+        [
+          {
+            "node": "Switch Guard Kind",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reply Side Question": {
+      "main": [
+        [
+          {
+            "node": "Save outgoing message",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Send a text message",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Update conversation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch Guard Kind": {
+      "main": [
+        [
+          {
+            "node": "Apply Event Step Value",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reply Side Question",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reply Change Topic - Events",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reply Ask Again - Events",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apply Event Step Value": {
+      "main": [
+        [
+          {
+            "node": "Save outgoing message",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Send a text message",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Update conversation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reply Ask Again - Events": {
+      "main": [
+        [
+          {
+            "node": "Save outgoing message",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Send a text message",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Update conversation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reply Change Topic - Events": {
+      "main": [
+        [
+          {
+            "node": "Save outgoing message",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Send a text message",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Update conversation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "103469d9-3d83-426b-87fd-85725dc39039",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "de8396c057c90157b11f4f4209f784d788086afd909604db9bce09a14132efbd"
+  },
+  "id": "QIZ8XODFWPJVgTBn",
+  "tags": []
+}

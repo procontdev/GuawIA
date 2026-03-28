@@ -1,7 +1,7 @@
 export type EventLeadStatus = "nuevo" | "contactado" | "cotizado" | "cerrado";
 
 export interface EventLead {
-  id: number;
+  id: string;
   createdAt: string;
   contactName: string;
   phone: string;

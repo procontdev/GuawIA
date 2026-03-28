@@ -1,0 +1,1413 @@
+{
+  "name": "Guaw - Main Flow",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": [
+          "message"
+        ],
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -672,
+        -96
+      ],
+      "id": "7842973f-d237-4504-b136-f24964ce08a0",
+      "name": "Telegram Trigger",
+      "webhookId": "e112503a-d4c5-44fc-a6ff-c867811a2d8b",
+      "credentials": {
+        "telegramApi": {
+          "id": "vqVykw5wnDelB88L",
+          "name": "Telegram - Guaw Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "insert into guaw.customers (\n  full_name,\n  phone,\n  email,\n  channel,\n  external_user_id,\n  notes\n)\nvalues (\n  '{{ $json.full_name }}',\n  {{ $json.phone ? \"'\" + $json.phone.replace(/'/g, \"''\") + \"'\" : 'null' }},\n  {{ $json.email ? \"'\" + $json.email.replace(/'/g, \"''\") + \"'\" : 'null' }},\n  '{{ $json.channel }}',\n  '{{ $json.external_user_id }}',\n  {{ $json.notes ? \"'\" + $json.notes.replace(/'/g, \"''\") + \"'\" : 'null' }}\n)\non conflict (channel, external_user_id)\ndo update set\n  full_name = excluded.full_name,\n  phone = coalesce(excluded.phone, guaw.customers.phone),\n  email = coalesce(excluded.email, guaw.customers.email),\n  notes = coalesce(excluded.notes, guaw.customers.notes),\n  updated_at = now()\nreturning *;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -240,
+        -96
+      ],
+      "id": "a1f2aaa3-3e49-4906-ad8b-9313fede5ada",
+      "name": "Upsert Customer",
+      "credentials": {
+        "postgres": {
+          "id": "GSsEb41ZiGr8tdb3",
+          "name": "Supabase Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const msg = $json.message ?? {};\nconst from = msg.from ?? {};\nconst chat = msg.chat ?? {};\n\nconst firstName = from.first_name ?? '';\nconst lastName = from.last_name ?? '';\nconst fullName = `${firstName} ${lastName}`.trim();\n\nreturn [\n  {\n    json: {\n      channel: 'telegram',\n      external_user_id: String(from.id ?? ''),\n      external_conversation_id: String(chat.id ?? ''),\n      message_text: msg.text ?? '',\n      full_name: fullName || from.username || 'Cliente Telegram',\n      username: from.username ?? null,\n      phone: null,\n      email: null,\n      notes: null,\n      telegram_chat_id: String(chat.id ?? ''),\n      telegram_message_id: msg.message_id ?? null,\n      raw_payload: $json,\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -448,
+        -96
+      ],
+      "id": "4aaf6b43-390e-4661-8473-d47f239af22b",
+      "name": "Normalize Input"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select\n  id,\n  customer_id,\n  channel,\n  external_conversation_id,\n  current_flow,\n  current_step,\n  context_json,\n  is_open,\n  created_at,\n  updated_at\nfrom guaw.conversations\nwhere customer_id = '{{ $json.id }}'\n  and channel = '{{ $node[\"Normalize Input\"].json[\"channel\"] }}'\n  and is_open = true\norder by created_at desc\nlimit 1;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -32,
+        -96
+      ],
+      "id": "81ab2cc8-3491-4f5a-a1eb-1a6731c63051",
+      "name": "Get Open Conversation",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "GSsEb41ZiGr8tdb3",
+          "name": "Supabase Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "06c58d2a-ba74-4565-82c9-f2b7b5b4302a",
+              "leftValue": "={{ $json.id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        176,
+        -96
+      ],
+      "id": "c5c3a981-0979-48f4-83a5-13f1fe1d74bf",
+      "name": "If - Converation Exists?",
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "insert into guaw.conversations (\n  customer_id,\n  channel,\n  external_conversation_id,\n  current_flow,\n  current_step,\n  context_json,\n  is_open\n)\nvalues (\n  '{{ $node[\"Upsert Customer\"].json[\"id\"] }}',\n  '{{ $node[\"Normalize Input\"].json[\"channel\"] }}',\n  '{{ $node[\"Normalize Input\"].json[\"external_conversation_id\"] }}',\n  null,\n  'start',\n  guaw.get_initial_context(),\n  true\n)\nreturning\n  id,\n  customer_id,\n  channel,\n  external_conversation_id,\n  current_flow,\n  current_step,\n  context_json,\n  is_open,\n  created_at,\n  updated_at;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        416,
+        16
+      ],
+      "id": "c515dd3f-1a2b-4c9d-aedd-2736d9b99d9c",
+      "name": "Create Conversation",
+      "credentials": {
+        "postgres": {
+          "id": "GSsEb41ZiGr8tdb3",
+          "name": "Supabase Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        656,
+        -96
+      ],
+      "id": "7f0659e6-d11a-4668-b08c-96fbe6778f1e",
+      "name": "Merge Conversation"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $('Normalize Input').item.json.message_text }}",
+        "options": {
+          "systemMessage": "=Eres un clasificador de intención para el asistente virtual de Guaw.\n\nDebes analizar el mensaje del usuario y devolver únicamente JSON válido.\n\nIntenciones permitidas:\n- delivery_order\n- menu_request\n- event_info\n- event_lead\n- greeting\n- human_help\n- fallback\n\nReglas:\n- \"quiero pedir\", \"deseo ordenar\", \"me das un chaufa\", \"quiero delivery\", \"pedido\" y similares => delivery_order\n- \"muestrame la carta\", \"que tienen\", \"menu\" y similares => menu_request\n- \"atienden eventos\", \"cómo funciona el servicio para eventos\", \"qué incluyen para eventos\", \"cuánto cuesta para eventos\" y similares => event_info o event_lead\n- \"quiero cotizar un evento\", \"quiero registrar un evento\", \"necesito una propuesta para un evento\" y similares => event_lead\n- saludos simples => greeting\n- si pide hablar con alguien => human_help\n- si no está claro => fallback\n\nDevuelve exactamente este formato:\n{\n  \"intent\": \"delivery_order\",\n  \"confidence\": 0.95,\n  \"entities\": {\n    \"products\": [],\n    \"district\": null,\n    \"event_date\": null\n  }\n}\n\nNo agregues texto fuera del JSON."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        1984,
+        -32
+      ],
+      "id": "94512569-2364-4c80-9006-efc6e821f09a",
+      "name": "Intent Clasiffier"
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $json.output ?? '';\n\nlet parsed;\n\ntry {\n  parsed = JSON.parse(raw);\n} catch (e) {\n  parsed = {\n    intent: 'fallback',\n    confidence: 0,\n    entities: {\n      products: [],\n      district: null,\n      event_date: null\n    }\n  };\n}\n\nreturn [\n  {\n    json: parsed\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2336,
+        -32
+      ],
+      "id": "7d40e195-5ae5-44ac-baa0-bd2c4ee1c240",
+      "name": "Parse Intent Json"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4.1-mini"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        1904,
+        144
+      ],
+      "id": "9663e314-adf6-41b1-8e92-c5a820785f8e",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "XdONAnsf5xq3X8h3",
+          "name": "OpenAi account - Foe"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.intent }}",
+                    "rightValue": "=greeting",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "cb566140-531d-40e7-80d5-ac53e9155990"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "b4dc4c7e-0d1f-4277-8222-f731cd7fcea1",
+                    "leftValue": "={{ $json.intent }}",
+                    "rightValue": "menu_request",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "7a6de426-d1ee-4761-9e20-b98f0797381f",
+                    "leftValue": "={{ $json.intent }}",
+                    "rightValue": "delivery_order",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "66eaea15-3cf7-440c-baad-c42596f667ef",
+                    "leftValue": "={{ $json.intent }}",
+                    "rightValue": "event_info",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "event_info"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "d3daa1cf-c8b7-4b2a-896f-5de007e09fad",
+                    "leftValue": "={{ $json.intent }}",
+                    "rightValue": "event_lead",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "event_lead"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.3,
+      "position": [
+        2560,
+        -80
+      ],
+      "id": "2ff0b5dc-c38c-4fdc-804c-20d5c60f61c7",
+      "name": "Switch Intent"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "f2Qn8eMvBACxEb04",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/f2Qn8eMvBACxEb04",
+          "cachedResultName": "Guaw - Delivery Flow"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "mode": "each",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        3264,
+        -80
+      ],
+      "id": "70317b7e-b03c-4e71-aef7-ecd0cf0538c5",
+      "name": "Go to Guaw - Delivery"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "7832165b-fb1c-46bd-86f8-a84a9dbb3f1c",
+              "name": "intent",
+              "value": "={{ $('Parse Intent Json').item.json.intent }}",
+              "type": "string"
+            },
+            {
+              "id": "59fa0a0f-3f76-47d2-ab7b-7e2ba94a1bc2",
+              "name": "confidence",
+              "value": "={{ $('Parse Intent Json').item.json.confidence }}",
+              "type": "number"
+            },
+            {
+              "id": "f9e624fe-156c-45e9-a2a5-e946cb9e8245",
+              "name": "entities",
+              "value": "={{ $('Parse Intent Json').item.json.entities }}",
+              "type": "object"
+            },
+            {
+              "id": "fad5286a-8eab-4a7a-9624-01c1db7f9aa9",
+              "name": "message_text",
+              "value": "={{ $('Normalize Input').item.json.message_text }}",
+              "type": "string"
+            },
+            {
+              "id": "270afc80-4943-4c98-98f6-fa6ad21936c3",
+              "name": "channel",
+              "value": "={{ $('Normalize Input').item.json.channel }}",
+              "type": "string"
+            },
+            {
+              "id": "7f32a537-cbac-47de-a0fd-f7c3a682b8ec",
+              "name": "telegram_chat_id",
+              "value": "={{ $('Normalize Input').item.json.telegram_chat_id }}",
+              "type": "string"
+            },
+            {
+              "id": "b15ffa33-b65e-4efe-b5e3-c41d2e5217ab",
+              "name": "customer_name",
+              "value": "={{ $('Upsert Customer').item.json.full_name }}",
+              "type": "string"
+            },
+            {
+              "id": "3e01b3c0-cb08-43f9-aaf0-f76cc6b5cad4",
+              "name": "customer_id",
+              "value": "={{ $('Upsert Customer').item.json.id }}",
+              "type": "string"
+            },
+            {
+              "id": "4700c902-6a96-4c21-8e41-c0e923cb483c",
+              "name": "current_flow",
+              "value": "={{ $('Merge Conversation').item.json.current_flow }}",
+              "type": "string"
+            },
+            {
+              "id": "9688e07b-54bf-4e3f-93e1-17c5e4039db0",
+              "name": "current_step",
+              "value": "={{ $('Merge Conversation').item.json.current_step }}",
+              "type": "string"
+            },
+            {
+              "id": "66a8fb41-ca4e-40ca-8243-cfbaa613756a",
+              "name": "context_json",
+              "value": "={{ $('Merge Conversation').item.json.context_json }}",
+              "type": "object"
+            },
+            {
+              "id": "6230f9dc-72c5-4ad2-86d2-ec0b41b1876e",
+              "name": "conversation_id",
+              "value": "={{ $node[\"Merge Conversation\"].json[\"id\"] }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        3056,
+        16
+      ],
+      "id": "ff430bea-3ac8-4c44-a533-0ce44df12eff",
+      "name": "Build Delivery Input"
+    },
+    {
+      "parameters": {
+        "jsCode": "const currentFlow = $json.current_flow;\nconst currentStep = $json.current_step;\nconst messageText = ($node[\"Normalize Input\"].json[\"message_text\"] || '').trim().toLowerCase();\n\nconst terminalSteps = [\n  'start',\n  'completed',\n  'order_confirmed',\n  'event_lead_registered',\n  'cancelled'\n];\n\nconst resetWords = [\n  'hola',\n  'buenas',\n  'hello',\n  'hi',\n  'menu',\n  'menú',\n  'quiero ver la carta',\n  'atienden eventos',\n  'info de eventos',\n  'quiero cotizar un evento',\n  'eventos'\n];\n\nconst looksLikeFreshStart = resetWords.some(w => messageText.includes(w));\n\nconst hasPendingDeliveryStep =\n  currentFlow === 'delivery' &&\n  currentStep &&\n  !terminalSteps.includes(currentStep);\n\nconst hasPendingEventsStep =\n  currentFlow === 'events' &&\n  currentStep &&\n  !terminalSteps.includes(currentStep);\n\nlet routeMode = 'classify';\n\nif (!looksLikeFreshStart && hasPendingDeliveryStep) {\n  routeMode = 'delivery_context';\n} else if (!looksLikeFreshStart && hasPendingEventsStep) {\n  routeMode = 'events_context';\n}\n\nreturn [\n  {\n    json: {\n      ...$json,\n      route_mode: routeMode\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        -96
+      ],
+      "id": "18dd4ee7-4d71-4075-be9d-5e376e446e3c",
+      "name": "Resolve Routing Mode"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route_mode }}",
+                    "rightValue": "contextual_delivery",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "6967d924-340a-4cfb-b3a5-d33c6a395b18"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "contextual_delivery"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "5476beef-08ad-4ec6-bfef-9b5614057f4d",
+                    "leftValue": "={{ $json.route_mode }}",
+                    "rightValue": "events_context",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "59406b46-7969-407b-922e-0235caff6a93",
+                    "leftValue": "={{ $json.route_mode }}",
+                    "rightValue": "classify",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "classify"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "61e06fd3-e7db-4979-95f7-3ac2a0588473",
+                    "leftValue": "={{ $json.route_mode }}",
+                    "rightValue": "delivery_context",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "delivery_context"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "ef408044-676c-44f2-9dc8-190cc72e211f",
+                    "leftValue": "={{ $json.route_mode }}",
+                    "rightValue": "events_context",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "events_context"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.3,
+      "position": [
+        1088,
+        -96
+      ],
+      "id": "b7761c60-e4d2-4107-b54d-10e1b0ec89fe",
+      "name": "Switch"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "insert into guaw.conversation_messages (\n  conversation_id,\n  sender_type,\n  message_text,\n  structured_data\n)\nvalues (\n  '{{ $node[\"Merge Conversation\"].json[\"id\"] }}',\n  'user',\n  '{{ ($node[\"Normalize Input\"].json[\"message_text\"] || \"\").replace(/'/g, \"''\") }}',\n  '{{ JSON.stringify($node[\"Normalize Input\"].json).replace(/'/g, \"''\") }}'::jsonb\n)\nreturning *;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1392,
+        400
+      ],
+      "id": "601e6d67-baea-4845-9291-c7950d6239e4",
+      "name": "Save Incoming Message - Classify",
+      "credentials": {
+        "postgres": {
+          "id": "GSsEb41ZiGr8tdb3",
+          "name": "Supabase Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "557e70cd-23d8-49c3-b889-57c9a3d1c8c1",
+              "name": "intent",
+              "value": "context_reply",
+              "type": "string"
+            },
+            {
+              "id": "edb39d74-941a-4fe1-b6b9-6ae380f35712",
+              "name": "context_reply",
+              "value": "1",
+              "type": "string"
+            },
+            {
+              "id": "41dfad6d-6a84-493e-9309-39d6dffa858b",
+              "name": "entities",
+              "value": "{}",
+              "type": "object"
+            },
+            {
+              "id": "aa5f77df-998c-415a-80ef-6fe7fe93ffea",
+              "name": "message_text",
+              "value": "={{ $('Normalize Input').item.json.message_text }}",
+              "type": "string"
+            },
+            {
+              "id": "b5c03dfc-c25d-451e-bc3d-b84363fe34e7",
+              "name": "telegram_chat_id",
+              "value": "={{ $('Normalize Input').item.json.telegram_chat_id }}",
+              "type": "string"
+            },
+            {
+              "id": "df96bfae-3d19-4085-90e8-3267442bcf63",
+              "name": "customer_name",
+              "value": "={{ $('Upsert Customer').item.json.full_name }}",
+              "type": "string"
+            },
+            {
+              "id": "47f2dacd-f304-4f3f-8783-e7d1d087d4ed",
+              "name": "customer_id",
+              "value": "={{ $('Upsert Customer').item.json.id }}",
+              "type": "string"
+            },
+            {
+              "id": "3828ccbf-a6f0-4d23-893d-27e2ff26a256",
+              "name": "current_flow",
+              "value": "={{ $('Merge Conversation').item.json.current_flow }}",
+              "type": "string"
+            },
+            {
+              "id": "c1264153-435e-40af-8e33-a82026296e17",
+              "name": "current_step",
+              "value": "={{ $('Merge Conversation').item.json.current_step }}",
+              "type": "string"
+            },
+            {
+              "id": "ef52b49e-bc06-4ca1-bcb6-36d577d62b23",
+              "name": "context_json",
+              "value": "={{ $('Merge Conversation').item.json.context_json }}",
+              "type": "object"
+            },
+            {
+              "id": "7a911386-110d-42f1-9326-80edeee5f215",
+              "name": "conversation_id",
+              "value": "={{ $('Merge Conversation').item.json.id }}",
+              "type": "string"
+            },
+            {
+              "id": "c353843c-99d7-4351-9db6-a0903e9bf4ef",
+              "name": "channel",
+              "value": "={{ $('Merge Conversation').item.json.channel }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1648,
+        -176
+      ],
+      "id": "de5c7413-6a48-4f13-a05c-ab5b87bd3d40",
+      "name": "Build Delivery Input - Context"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "insert into guaw.conversation_messages (\n  conversation_id,\n  sender_type,\n  message_text,\n  structured_data\n)\nvalues (\n  '{{ $node[\"Merge Conversation\"].json[\"id\"] }}',\n  'user',\n  '{{ ($node[\"Normalize Input\"].json[\"message_text\"] || \"\").replace(/'/g, \"''\") }}',\n  '{{ JSON.stringify($node[\"Normalize Input\"].json).replace(/'/g, \"''\") }}'::jsonb\n)\nreturning *;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1392,
+        -176
+      ],
+      "id": "adb754dc-51b0-4402-9cd8-3e00d589e608",
+      "name": "Save Incoming Message - Context",
+      "credentials": {
+        "postgres": {
+          "id": "GSsEb41ZiGr8tdb3",
+          "name": "Supabase Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "QIZ8XODFWPJVgTBn",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/QIZ8XODFWPJVgTBn",
+          "cachedResultName": "Guaw - Events Flow"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "confidence": 0
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "intent",
+              "displayName": "intent",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "confidence",
+              "displayName": "confidence",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "number",
+              "removed": false
+            },
+            {
+              "id": "entities",
+              "displayName": "entities",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "object",
+              "removed": false
+            },
+            {
+              "id": "message_text",
+              "displayName": "message_text",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "channel",
+              "displayName": "channel",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "telegram_chat_id",
+              "displayName": "telegram_chat_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "customer_name",
+              "displayName": "customer_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "customer_id",
+              "displayName": "customer_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "current_flow",
+              "displayName": "current_flow",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "current_step",
+              "displayName": "current_step",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "context_json",
+              "displayName": "context_json",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "object",
+              "removed": false
+            },
+            {
+              "id": "conversation_id",
+              "displayName": "conversation_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        3280,
+        160
+      ],
+      "id": "50031a1e-625b-407b-8ce5-8f290638a29f",
+      "name": "Go To Guaw - Events Flow"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "45a07c66-be48-481d-b244-22bdb149199e",
+              "name": "intent",
+              "value": "={{ $node[\"Parse Intent Json\"].json[\"intent\"] }}",
+              "type": "string"
+            },
+            {
+              "id": "ccc06f15-8112-4a73-8486-e09849d04eca",
+              "name": "confidence",
+              "value": "={{ $node[\"Parse Intent Json\"].json[\"confidence\"] }}",
+              "type": "string"
+            },
+            {
+              "id": "fca5d1cc-0558-4182-8397-02902e57284e",
+              "name": "entities",
+              "value": "={{ $node[\"Parse Intent Json\"].json[\"entities\"] }}",
+              "type": "string"
+            },
+            {
+              "id": "6fdbaaf6-3d6c-4a97-91e4-98be526e114f",
+              "name": "message_text",
+              "value": "={{ $('Normalize Input').item.json.message_text }}",
+              "type": "string"
+            },
+            {
+              "id": "39b38714-c5e2-4dbc-ab9f-07c0f514a958",
+              "name": "channel",
+              "value": "={{ $('Normalize Input').item.json.channel }}",
+              "type": "string"
+            },
+            {
+              "id": "074d2f27-7b55-4700-978b-c28d3fcf09eb",
+              "name": "telegram_chat_id",
+              "value": "={{ $('Normalize Input').item.json.telegram_chat_id }}",
+              "type": "string"
+            },
+            {
+              "id": "b85b7d41-384c-478a-9840-c41f052ffc87",
+              "name": "customer_name",
+              "value": "={{ $('Upsert Customer').item.json.full_name }}",
+              "type": "string"
+            },
+            {
+              "id": "bd09210f-9c98-4553-bcea-b101c28639d4",
+              "name": "customer_id",
+              "value": "={{ $('Upsert Customer').item.json.id }}",
+              "type": "string"
+            },
+            {
+              "id": "1058cfa0-f3ae-46a9-bb34-8759540b0634",
+              "name": "current_flow",
+              "value": "={{ $('Merge Conversation').item.json.current_flow }}",
+              "type": "string"
+            },
+            {
+              "id": "d4c44e52-9d29-4d4b-9201-4727706eb5d3",
+              "name": "current_step",
+              "value": "={{ $('Merge Conversation').item.json.current_step }}",
+              "type": "string"
+            },
+            {
+              "id": "93ed15ab-ae50-4aa4-abf3-d35310fe1a8e",
+              "name": "context_json",
+              "value": "={{ $('Merge Conversation').item.json.context_json }}",
+              "type": "object"
+            },
+            {
+              "id": "2777c4b4-9f5f-4547-a14a-a3bda4ebde37",
+              "name": "conversation_id",
+              "value": "={{ $('Merge Conversation').item.json.id }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        3056,
+        160
+      ],
+      "id": "29fdd5ac-498e-42e5-9819-aaf28003bae6",
+      "name": "Build Events Input"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "insert into guaw.conversation_messages (\n  conversation_id,\n  sender_type,\n  message_text,\n  structured_data\n)\nvalues (\n  '{{ $node[\"Merge Conversation\"].json[\"id\"] }}',\n  'user',\n  '{{ ($node[\"Normalize Input\"].json[\"message_text\"] || \"\").replace(/'/g, \"''\") }}',\n  '{{ JSON.stringify($node[\"Normalize Input\"].json).replace(/'/g, \"''\") }}'::jsonb\n)\nreturning *;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1392,
+        32
+      ],
+      "id": "3d6efb7d-7818-418c-9955-8e6f0829bb4a",
+      "name": "Save Incoming Message - Context1",
+      "credentials": {
+        "postgres": {
+          "id": "GSsEb41ZiGr8tdb3",
+          "name": "Supabase Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "557e70cd-23d8-49c3-b889-57c9a3d1c8c1",
+              "name": "intent",
+              "value": "context_reply",
+              "type": "string"
+            },
+            {
+              "id": "edb39d74-941a-4fe1-b6b9-6ae380f35712",
+              "name": "confidence",
+              "value": "1",
+              "type": "string"
+            },
+            {
+              "id": "41dfad6d-6a84-493e-9309-39d6dffa858b",
+              "name": "entities",
+              "value": "{}",
+              "type": "object"
+            },
+            {
+              "id": "aa5f77df-998c-415a-80ef-6fe7fe93ffea",
+              "name": "message_text",
+              "value": "={{ $('Normalize Input').item.json.message_text }}",
+              "type": "string"
+            },
+            {
+              "id": "b5c03dfc-c25d-451e-bc3d-b84363fe34e7",
+              "name": "telegram_chat_id",
+              "value": "={{ $('Normalize Input').item.json.telegram_chat_id }}",
+              "type": "string"
+            },
+            {
+              "id": "df96bfae-3d19-4085-90e8-3267442bcf63",
+              "name": "customer_name",
+              "value": "={{ $('Upsert Customer').item.json.full_name }}",
+              "type": "string"
+            },
+            {
+              "id": "47f2dacd-f304-4f3f-8783-e7d1d087d4ed",
+              "name": "customer_id",
+              "value": "={{ $('Upsert Customer').item.json.id }}",
+              "type": "string"
+            },
+            {
+              "id": "3828ccbf-a6f0-4d23-893d-27e2ff26a256",
+              "name": "current_flow",
+              "value": "={{ $('Merge Conversation').item.json.current_flow }}",
+              "type": "string"
+            },
+            {
+              "id": "c1264153-435e-40af-8e33-a82026296e17",
+              "name": "current_step",
+              "value": "={{ $('Merge Conversation').item.json.current_step }}",
+              "type": "string"
+            },
+            {
+              "id": "ef52b49e-bc06-4ca1-bcb6-36d577d62b23",
+              "name": "context_json",
+              "value": "={{ $('Merge Conversation').item.json.context_json }}",
+              "type": "object"
+            },
+            {
+              "id": "7a911386-110d-42f1-9326-80edeee5f215",
+              "name": "conversation_id",
+              "value": "={{ $('Merge Conversation').item.json.id }}",
+              "type": "string"
+            },
+            {
+              "id": "c353843c-99d7-4351-9db6-a0903e9bf4ef",
+              "name": "channel",
+              "value": "={{ $('Merge Conversation').item.json.channel }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1648,
+        32
+      ],
+      "id": "7c2e3daa-85cb-4a3b-b5b9-5648eea2aec7",
+      "name": "Build Event Input - Context"
+    }
+  ],
+  "pinData": {
+    "Telegram Trigger": [
+      {
+        "json": {
+          "update_id": 889789819,
+          "message": {
+            "message_id": 197,
+            "from": {
+              "id": 1376481410,
+              "is_bot": false,
+              "first_name": "Ramiro",
+              "language_code": "es"
+            },
+            "chat": {
+              "id": 1376481410,
+              "first_name": "Ramiro",
+              "type": "private"
+            },
+            "date": 1774678856,
+            "text": "Hola, quiero hacer un evento"
+          }
+        }
+      }
+    ]
+  },
+  "connections": {
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "Normalize Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Input": {
+      "main": [
+        [
+          {
+            "node": "Upsert Customer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upsert Customer": {
+      "main": [
+        [
+          {
+            "node": "Get Open Conversation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Open Conversation": {
+      "main": [
+        [
+          {
+            "node": "If - Converation Exists?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If - Converation Exists?": {
+      "main": [
+        [
+          {
+            "node": "Merge Conversation",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Create Conversation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Conversation": {
+      "main": [
+        [
+          {
+            "node": "Merge Conversation",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge Conversation": {
+      "main": [
+        [
+          {
+            "node": "Resolve Routing Mode",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Intent Clasiffier": {
+      "main": [
+        [
+          {
+            "node": "Parse Intent Json",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Intent Clasiffier",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Intent Json": {
+      "main": [
+        [
+          {
+            "node": "Switch Intent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch Intent": {
+      "main": [
+        [
+          {
+            "node": "Build Delivery Input",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Delivery Input",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Delivery Input",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Events Input",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Events Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Delivery Input": {
+      "main": [
+        [
+          {
+            "node": "Go to Guaw - Delivery",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resolve Routing Mode": {
+      "main": [
+        [
+          {
+            "node": "Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch": {
+      "main": [
+        [
+          {
+            "node": "Save Incoming Message - Context",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Save Incoming Message - Context1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Save Incoming Message - Classify",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Save Incoming Message - Context",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Save Incoming Message - Context1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Incoming Message - Classify": {
+      "main": [
+        [
+          {
+            "node": "Intent Clasiffier",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Delivery Input - Context": {
+      "main": [
+        [
+          {
+            "node": "Go to Guaw - Delivery",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Incoming Message - Context": {
+      "main": [
+        [
+          {
+            "node": "Build Delivery Input - Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Events Input": {
+      "main": [
+        [
+          {
+            "node": "Go To Guaw - Events Flow",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Incoming Message - Context1": {
+      "main": [
+        [
+          {
+            "node": "Build Event Input - Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Event Input - Context": {
+      "main": [
+        [
+          {
+            "node": "Go To Guaw - Events Flow",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "152314fd-6507-4d20-836d-4d6207d9085c",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "de8396c057c90157b11f4f4209f784d788086afd909604db9bce09a14132efbd"
+  },
+  "id": "R7f0YVYn6d8aa7Fs",
+  "tags": []
+}

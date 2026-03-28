@@ -1,0 +1,569 @@
+{
+  "name": "Guaw - Dashboard Webhook",
+  "nodes": [
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT\n  o.id,\n  'GW-' || upper(left(replace(o.id::text, '-', ''), 8)) AS code,\n  CASE\n    WHEN o.order_status IN ('pending_confirmation', 'confirmed') THEN 'nuevo'\n    WHEN o.order_status = 'in_kitchen' THEN 'preparacion'\n    WHEN o.order_status = 'dispatched' THEN 'listo'\n    WHEN o.order_status = 'delivered' THEN 'entregado'\n    ELSE 'nuevo'\n  END AS status,\n  COALESCE(o.confirmed_at, o.requested_at, o.created_at) AS \"createdAt\",\n  COALESCE(o.estimated_minutes_max, o.estimated_minutes_min, 45) AS \"etaMin\",\n  COALESCE(c.full_name, '') AS \"customerName\",\n  COALESCE(c.phone, '') AS phone,\n  COALESCE(o.district, '') AS district,\n  COALESCE(o.address_text, '') AS address,\n  COALESCE(o.reference_text, '') AS reference,\n\n  COALESCE(o.delivery_fee, 0)::float8 AS \"deliveryFee\",\n\n  COALESCE(\n    NULLIF(o.total_amount, 0),\n    (\n      COALESCE(\n        (\n          SELECT SUM(oi.line_subtotal)\n          FROM guaw.order_items oi\n          WHERE oi.order_id = o.id\n        ),\n        0\n      )\n      +\n      COALESCE(o.delivery_fee, 0)\n    )\n  )::float8 AS total,\n\n  COALESCE(o.customer_notes, o.internal_notes, '') AS notes,\n\n  COALESCE(\n    (\n      SELECT json_agg(\n        json_build_object(\n          'name', oi.item_name_snapshot,\n          'qty', oi.quantity,\n          'extras',\n            COALESCE(\n              (\n                SELECT json_agg(oie.extra_name ORDER BY oie.created_at)\n                FROM guaw.order_item_extras oie\n                WHERE oie.order_item_id = oi.id\n              ),\n              '[]'::json\n            )\n        )\n        ORDER BY oi.created_at\n      )\n      FROM guaw.order_items oi\n      WHERE oi.order_id = o.id\n    ),\n    '[]'::json\n  ) AS items\n\nFROM guaw.orders o\nLEFT JOIN guaw.customers c\n  ON c.id = o.customer_id\nWHERE o.order_status IN (\n  'pending_confirmation',\n  'confirmed',\n  'in_kitchen',\n  'dispatched',\n  'delivered'\n)\nORDER BY COALESCE(o.confirmed_at, o.requested_at, o.created_at) DESC\nLIMIT 100;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        144,
+        -160
+      ],
+      "id": "1f315e49-c29b-42c5-9f50-19302345b1a5",
+      "name": "Execute a SQL query",
+      "credentials": {
+        "postgres": {
+          "id": "GSsEb41ZiGr8tdb3",
+          "name": "Supabase Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "allIncomingItems",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        624,
+        -160
+      ],
+      "id": "d3ba20bd-4e69-4f0b-94a2-5eacb8b02866",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "jsCode": "return [\n  {\n    json: {\n      data: $input.all().map(item => item.json)\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -960,
+        -80
+      ],
+      "id": "0fbb9528-ce6c-4263-8fe0-b5816d964143",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE guaw.orders\nSET\n  order_status = '{{ $json.dbStatus }}',\n  updated_at = NOW()\nWHERE id = '{{ $json.orderId }}'\nRETURNING id, order_status, updated_at;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        384,
+        32
+      ],
+      "id": "294d070f-74ed-4ce1-b3a7-a6f34b73e2bd",
+      "name": "Execute a SQL query1",
+      "credentials": {
+        "postgres": {
+          "id": "GSsEb41ZiGr8tdb3",
+          "name": "Supabase Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{\n{\n  \"ok\": true,\n  \"id\": $json.id,\n  \"dbStatus\": $json.order_status,\n  \"updatedAt\": $json.updated_at\n}\n}}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        640,
+        32
+      ],
+      "id": "07580844-8527-48d1-975b-28898794db84",
+      "name": "Respond to Webhook1"
+    },
+    {
+      "parameters": {
+        "path": "orders-board",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -80,
+        -160
+      ],
+      "id": "b01c48db-3d86-4b23-9691-735dc476500a",
+      "name": "GetOrders - Webhool",
+      "webhookId": "add1ef27-ea94-4ea0-8af1-ed1eb5b2a20a"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "orders/update-status",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -80,
+        32
+      ],
+      "id": "55c40697-c38d-436b-b41a-cd006b103e66",
+      "name": "UpdateOrderState - Webhook",
+      "webhookId": "533fdde1-65b7-4bd4-b732-82122c8632eb"
+    },
+    {
+      "parameters": {
+        "path": "event-leads",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -80,
+        224
+      ],
+      "id": "1a6ac35d-2e3e-4933-9718-18b3d76c4c44",
+      "name": "GetEventLeads - Webhook",
+      "webhookId": "45247a90-1b1d-4893-9355-195a8abfa2be"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT\n  el.id,\n  el.created_at AS \"createdAt\",\n  COALESCE(el.contact_name, '') AS \"contactName\",\n  COALESCE(el.phone, '') AS phone,\n  COALESCE(el.attendee_count, 0) AS \"guestCount\",\n  el.event_date AS \"eventDate\",\n  COALESCE(el.location_text, '') AS location,\n  COALESCE(\n    el.event_type,\n    CASE\n      WHEN el.needs_food_service IS TRUE THEN 'Servicio de comida'\n      ELSE 'Evento'\n    END\n  ) AS \"chaufaChoice\",\n  COALESCE(el.notes, '') AS notes,\n  CASE\n    WHEN el.status = 'new' THEN 'nuevo'\n    WHEN el.status = 'qualified' THEN 'contactado'\n    WHEN el.status = 'quoted' THEN 'cotizado'\n    WHEN el.status IN ('won', 'lost', 'cancelled') THEN 'cerrado'\n    ELSE 'nuevo'\n  END AS status\nFROM guaw.event_leads el\nORDER BY el.created_at DESC\nLIMIT 100;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        144,
+        224
+      ],
+      "id": "b541d7a7-1b2a-40e0-8f5c-5f006ddc72d5",
+      "name": "Execute a SQL query2",
+      "credentials": {
+        "postgres": {
+          "id": "GSsEb41ZiGr8tdb3",
+          "name": "Supabase Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "allIncomingItems",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        384,
+        224
+      ],
+      "id": "a92bd450-c8ff-4f8b-9119-1a58570ff2d3",
+      "name": "Respond to Webhook2"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "event-leads/update-status",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -80,
+        416
+      ],
+      "id": "847dbf28-6bdb-40fb-9d6d-a5e1d726b675",
+      "name": "EventLeadUpdateStatus - Webhook",
+      "webhookId": "600655f3-506f-4558-b03a-50b675ab3dc3"
+    },
+    {
+      "parameters": {
+        "jsCode": "const leadId = $json.body?.leadId;\nconst status = $json.body?.status;\n\nconst statusMap = {\n  nuevo: \"new\",\n  contactado: \"qualified\",\n  cotizado: \"quoted\",\n  cerrado: \"won\",\n};\n\nreturn [\n  {\n    json: {\n      leadId,\n      uiStatus: status,\n      dbStatus: statusMap[status] || \"new\",\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        144,
+        416
+      ],
+      "id": "ddeb5372-ca50-405f-afc3-fefd0b14a968",
+      "name": "Map DB Events"
+    },
+    {
+      "parameters": {
+        "jsCode": "const orderId = $json.body?.orderId;\nconst status = $json.body?.status;\n\nconst statusMap = {\n  nuevo: \"confirmed\",\n  preparacion: \"in_kitchen\",\n  listo: \"dispatched\",\n  entregado: \"delivered\",\n};\n\nreturn [\n  {\n    json: {\n      orderId,\n      uiStatus: status,\n      dbStatus: statusMap[status] || \"confirmed\",\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        144,
+        32
+      ],
+      "id": "9eca5332-24f6-4445-bb1c-16a90d80e4d6",
+      "name": "Map DB Orders"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE guaw.event_leads\nSET\n  status = '{{ $json.dbStatus }}',\n  updated_at = NOW()\nWHERE id = '{{ $json.leadId }}'\nRETURNING id, status, updated_at;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        384,
+        416
+      ],
+      "id": "86b361db-7e8b-4cd0-b5a4-35e16c014407",
+      "name": "Execute a SQL query3",
+      "credentials": {
+        "postgres": {
+          "id": "GSsEb41ZiGr8tdb3",
+          "name": "Supabase Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{\n  {\n    ok: true,\n    id: $json.id,\n    dbStatus: $json.status,\n    updatedAt: $json.updated_at\n  }\n}}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        640,
+        416
+      ],
+      "id": "0dda6c7e-540e-4bdc-b273-30cecd6c6904",
+      "name": "Respond to Webhook3"
+    },
+    {
+      "parameters": {
+        "path": "/dashboard-summary",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -80,
+        608
+      ],
+      "id": "cf6740d6-56d0-4aef-a959-ed140bda38a4",
+      "name": "DashboardSummary - Webhook",
+      "webhookId": "a651be6f-86ed-4742-8144-425490601e3f"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT\n  (\n    SELECT COUNT(*)\n    FROM guaw.orders o\n    WHERE o.order_status IN ('pending_confirmation', 'confirmed', 'in_kitchen', 'dispatched')\n  ) AS \"activeOrders\",\n\n  (\n    SELECT COUNT(*)\n    FROM guaw.orders o\n    WHERE o.order_status IN ('pending_confirmation', 'confirmed')\n  ) AS \"newOrders\",\n\n  (\n    SELECT COUNT(*)\n    FROM guaw.orders o\n    WHERE o.order_status = 'in_kitchen'\n  ) AS \"preparingOrders\",\n\n  (\n    SELECT COUNT(*)\n    FROM guaw.orders o\n    WHERE o.order_status = 'dispatched'\n  ) AS \"readyOrders\",\n\n  (\n    SELECT COUNT(*)\n    FROM guaw.orders o\n    WHERE o.order_status = 'delivered'\n  ) AS \"deliveredOrders\",\n\n  (\n    SELECT COUNT(*)\n    FROM guaw.orders o\n    WHERE o.order_status IN ('pending_confirmation', 'confirmed', 'in_kitchen', 'dispatched', 'delivered')\n  ) AS \"todayOrders\",\n\n  COALESCE(\n    (\n      SELECT SUM(\n        COALESCE(\n          NULLIF(o.total_amount, 0),\n          (\n            COALESCE(\n              (\n                SELECT SUM(oi.line_subtotal)\n                FROM guaw.order_items oi\n                WHERE oi.order_id = o.id\n              ),\n              0\n            ) + COALESCE(o.delivery_fee, 0)\n          )\n        )\n      )\n      FROM guaw.orders o\n      WHERE o.order_status IN ('pending_confirmation', 'confirmed', 'in_kitchen', 'dispatched', 'delivered')\n    ),\n    0\n  )::float8 AS \"totalSalesAmount\",\n\n  COALESCE(\n    (\n      SELECT AVG(\n        COALESCE(\n          NULLIF(o.total_amount, 0),\n          (\n            COALESCE(\n              (\n                SELECT SUM(oi.line_subtotal)\n                FROM guaw.order_items oi\n                WHERE oi.order_id = o.id\n              ),\n              0\n            ) + COALESCE(o.delivery_fee, 0)\n          )\n        )\n      )\n      FROM guaw.orders o\n      WHERE o.order_status IN ('pending_confirmation', 'confirmed', 'in_kitchen', 'dispatched', 'delivered')\n    ),\n    0\n  )::float8 AS \"avgTicket\",\n\n  (\n    SELECT COUNT(*)\n    FROM guaw.event_leads el\n  ) AS \"eventLeads\",\n\n  (\n    SELECT COUNT(*)\n    FROM guaw.event_leads el\n    WHERE el.status IN ('new', 'qualified', 'quoted')\n  ) AS \"pendingEventLeads\",\n\n  (\n    SELECT COUNT(*)\n    FROM guaw.event_leads el\n    WHERE el.status = 'won'\n  ) AS \"closedEventLeads\";",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        144,
+        608
+      ],
+      "id": "b690c9f7-93e4-4669-86bb-e8102ba35234",
+      "name": "Execute a SQL query4",
+      "credentials": {
+        "postgres": {
+          "id": "GSsEb41ZiGr8tdb3",
+          "name": "Supabase Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        384,
+        608
+      ],
+      "id": "f445fbe7-d68b-4df7-901e-5f1082270599",
+      "name": "Respond to Webhook4"
+    }
+  ],
+  "pinData": {
+    "EventLeadUpdateStatus - Webhook": [
+      {
+        "json": {
+          "headers": {
+            "host": "elastica-n8n.3haody.easypanel.host",
+            "user-agent": "Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Mobile Safari/537.36",
+            "content-length": "71",
+            "accept": "*/*",
+            "accept-encoding": "gzip, deflate, br, zstd",
+            "accept-language": "es-419,es;q=0.9",
+            "cache-control": "no-cache",
+            "content-type": "application/json",
+            "origin": "http://localhost:5174",
+            "pragma": "no-cache",
+            "priority": "u=1, i",
+            "referer": "http://localhost:5174/",
+            "sec-ch-ua": "\"Chromium\";v=\"146\", \"Not-A.Brand\";v=\"24\", \"Google Chrome\";v=\"146\"",
+            "sec-ch-ua-mobile": "?1",
+            "sec-ch-ua-platform": "\"Android\"",
+            "sec-fetch-dest": "empty",
+            "sec-fetch-mode": "cors",
+            "sec-fetch-site": "cross-site",
+            "x-forwarded-for": "181.65.25.87",
+            "x-forwarded-host": "elastica-n8n.3haody.easypanel.host",
+            "x-forwarded-port": "443",
+            "x-forwarded-proto": "https",
+            "x-forwarded-server": "ab5a0db0176e",
+            "x-real-ip": "181.65.25.87"
+          },
+          "params": {},
+          "query": {},
+          "body": {
+            "leadId": "57eded1a-cd34-46b8-9a6a-e99375e92611",
+            "status": "contactado"
+          },
+          "webhookUrl": "https://elastica-n8n.3haody.easypanel.host/webhook/event-leads/update-status",
+          "executionMode": "production"
+        }
+      }
+    ],
+    "UpdateOrderState - Webhook": [
+      {
+        "json": {
+          "headers": {
+            "host": "elastica-n8n.3haody.easypanel.host",
+            "user-agent": "Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Mobile Safari/537.36",
+            "content-length": "73",
+            "accept": "*/*",
+            "accept-encoding": "gzip, deflate, br, zstd",
+            "accept-language": "es-419,es;q=0.9",
+            "cache-control": "no-cache",
+            "content-type": "application/json",
+            "origin": "http://localhost:5174",
+            "pragma": "no-cache",
+            "priority": "u=1, i",
+            "referer": "http://localhost:5174/",
+            "sec-ch-ua": "\"Chromium\";v=\"146\", \"Not-A.Brand\";v=\"24\", \"Google Chrome\";v=\"146\"",
+            "sec-ch-ua-mobile": "?1",
+            "sec-ch-ua-platform": "\"Android\"",
+            "sec-fetch-dest": "empty",
+            "sec-fetch-mode": "cors",
+            "sec-fetch-site": "cross-site",
+            "x-forwarded-for": "181.65.25.87",
+            "x-forwarded-host": "elastica-n8n.3haody.easypanel.host",
+            "x-forwarded-port": "443",
+            "x-forwarded-proto": "https",
+            "x-forwarded-server": "ab5a0db0176e",
+            "x-real-ip": "181.65.25.87"
+          },
+          "params": {},
+          "query": {},
+          "body": {
+            "orderId": "3a2e507d-9cea-4030-bf1b-abad9d3e4c82",
+            "status": "preparacion"
+          },
+          "webhookUrl": "https://elastica-n8n.3haody.easypanel.host/webhook/orders/update-status",
+          "executionMode": "production"
+        }
+      }
+    ],
+    "GetOrders - Webhool": [
+      {
+        "json": {
+          "headers": {
+            "host": "elastica-n8n.3haody.easypanel.host",
+            "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36",
+            "accept": "*/*",
+            "accept-encoding": "gzip, deflate, br, zstd",
+            "accept-language": "es-419,es;q=0.9",
+            "content-type": "application/json",
+            "if-none-match": "W/\"2b7-bhuKVejWOQHArUOmz9kCNzJv5bQ\"",
+            "origin": "http://localhost:5174",
+            "priority": "u=1, i",
+            "referer": "http://localhost:5174/",
+            "sec-ch-ua": "\"Chromium\";v=\"146\", \"Not-A.Brand\";v=\"24\", \"Google Chrome\";v=\"146\"",
+            "sec-ch-ua-mobile": "?0",
+            "sec-ch-ua-platform": "\"Windows\"",
+            "sec-fetch-dest": "empty",
+            "sec-fetch-mode": "cors",
+            "sec-fetch-site": "cross-site",
+            "x-forwarded-for": "181.65.25.87",
+            "x-forwarded-host": "elastica-n8n.3haody.easypanel.host",
+            "x-forwarded-port": "443",
+            "x-forwarded-proto": "https",
+            "x-forwarded-server": "ab5a0db0176e",
+            "x-real-ip": "181.65.25.87"
+          },
+          "params": {},
+          "query": {},
+          "body": {},
+          "webhookUrl": "https://elastica-n8n.3haody.easypanel.host/webhook/orders-board",
+          "executionMode": "production"
+        }
+      }
+    ]
+  },
+  "connections": {
+    "Execute a SQL query": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        []
+      ]
+    },
+    "Execute a SQL query1": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GetOrders - Webhool": {
+      "main": [
+        [
+          {
+            "node": "Execute a SQL query",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "UpdateOrderState - Webhook": {
+      "main": [
+        [
+          {
+            "node": "Map DB Orders",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GetEventLeads - Webhook": {
+      "main": [
+        [
+          {
+            "node": "Execute a SQL query2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute a SQL query2": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "EventLeadUpdateStatus - Webhook": {
+      "main": [
+        [
+          {
+            "node": "Map DB Events",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Map DB Orders": {
+      "main": [
+        [
+          {
+            "node": "Execute a SQL query1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Map DB Events": {
+      "main": [
+        [
+          {
+            "node": "Execute a SQL query3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute a SQL query3": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DashboardSummary - Webhook": {
+      "main": [
+        [
+          {
+            "node": "Execute a SQL query4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute a SQL query4": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "61dedcb5-5521-4a84-a88f-d2edde0670b7",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "de8396c057c90157b11f4f4209f784d788086afd909604db9bce09a14132efbd"
+  },
+  "id": "TAiNdnVLpaVo2xYG",
+  "tags": []
+}
