@@ -22,3 +22,6 @@ Thumbs.db
 *.sqlite
 *.db
 *.zip
+Dockerfile*
+README.md
+pnpm-debug.log*
