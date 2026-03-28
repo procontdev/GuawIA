@@ -2,7 +2,7 @@ import type { Order } from "@/types/order.types";
 
 export const mockOrders: Order[] = [
   {
-    id: 1051,
+    id: "1051",
     code: "GW-1051",
     status: "nuevo",
     createdAt: new Date(Date.now() - 3 * 60 * 1000).toISOString(),
@@ -21,7 +21,7 @@ export const mockOrders: Order[] = [
     ],
   },
   {
-    id: 1050,
+    id: "1050",
     code: "GW-1050",
     status: "preparacion",
     createdAt: new Date(Date.now() - 12 * 60 * 1000).toISOString(),
@@ -40,7 +40,7 @@ export const mockOrders: Order[] = [
     ],
   },
   {
-    id: 1049,
+    id: "1049",
     code: "GW-1049",
     status: "listo",
     createdAt: new Date(Date.now() - 22 * 60 * 1000).toISOString(),
@@ -56,7 +56,7 @@ export const mockOrders: Order[] = [
     items: [{ name: "Chaufa Clásico", qty: 3, extras: [] }],
   },
   {
-    id: 1048,
+    id: "1048",
     code: "GW-1048",
     status: "entregado",
     createdAt: new Date(Date.now() - 65 * 60 * 1000).toISOString(),
@@ -77,7 +77,7 @@ import type { EventLead } from "@/types/eventLead.types";
 
 export const mockEventLeads: EventLead[] = [
   {
-    id: 201,
+    id: "201",
     createdAt: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
     contactName: "Ramiro Lopez",
     phone: "992113692",
@@ -89,7 +89,7 @@ export const mockEventLeads: EventLead[] = [
     status: "nuevo",
   },
   {
-    id: 202,
+    id: "202",
     createdAt: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(),
     contactName: "Luciana Vega",
     phone: "987111222",
@@ -101,7 +101,7 @@ export const mockEventLeads: EventLead[] = [
     status: "cotizado",
   },
   {
-    id: 203,
+    id: "203",
     createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
     contactName: "Carlos Pérez",
     phone: "999000111",
@@ -113,7 +113,7 @@ export const mockEventLeads: EventLead[] = [
     status: "contactado",
   },
   {
-    id: 204,
+    id: "204",
     createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
     contactName: "María Fernanda",
     phone: "965444888",
