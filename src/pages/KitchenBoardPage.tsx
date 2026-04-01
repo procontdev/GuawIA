@@ -74,7 +74,6 @@ const STATUS_OPTIONS: OrderStatus[] = [
 
 const ALERTABLE_STATUSES: OrderStatus[] = ["nuevo", "preparacion", "listo"];
 
-
 function minutesSince(dateIso: string) {
   return Math.max(
     0,
@@ -166,6 +165,9 @@ function OrderCard({
 }) {
   const waitingMinutes = minutesSince(order.createdAt);
   const isDelayed = waitingMinutes >= 20 && order.status !== "entregado";
+  const deliveryType = (order.deliveryType || "").toLowerCase();
+  const isPickup = deliveryType === "pickup" || deliveryType === "recojo";
+  const hasItems = Array.isArray(order.items) && order.items.length > 0;
 
   return (
     <Card
@@ -190,6 +192,10 @@ function OrderCard({
               <Badge variant="outline" className="rounded-full">
                 <Clock3 className="mr-1 h-3.5 w-3.5" />
                 {relativeAgeLabel(order.createdAt)}
+              </Badge>
+
+              <Badge variant="outline" className="rounded-full">
+                {isPickup ? "Recojo" : "Delivery"}
               </Badge>
 
               {isDelayed ? (
@@ -231,16 +237,28 @@ function OrderCard({
             <span>{order.phone || "Sin teléfono"}</span>
           </div>
 
-          <div className="flex items-start gap-2 text-slate-700">
-            <MapPin className="mt-0.5 h-4 w-4" />
-            <div>
-              <div>{order.address || "Sin dirección"}</div>
-              <div className="text-xs text-slate-500">
-                {order.district || "Sin distrito"} ·{" "}
-                {order.reference || "Sin referencia"}
+          {isPickup ? (
+            <div className="flex items-start gap-2 text-slate-700">
+              <MapPin className="mt-0.5 h-4 w-4" />
+              <div>
+                <div className="font-medium">Recojo en tienda</div>
+                <div className="text-xs text-slate-500">
+                  No requiere dirección ni referencia
+                </div>
               </div>
             </div>
-          </div>
+          ) : (
+            <div className="flex items-start gap-2 text-slate-700">
+              <MapPin className="mt-0.5 h-4 w-4" />
+              <div>
+                <div>{order.address || "Sin dirección"}</div>
+                <div className="text-xs text-slate-500">
+                  {order.district || "Sin distrito"} ·{" "}
+                  {order.reference || "Sin referencia"}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="space-y-2">
@@ -250,26 +268,39 @@ function OrderCard({
           </div>
 
           <div className="space-y-2 rounded-2xl border border-dashed border-slate-200 p-3">
-            {order.items.map((item, idx) => (
-              <div key={`${order.id}-${idx}`} className="rounded-2xl bg-white p-3">
-                <p className="font-medium text-slate-900">
-                  {item.qty} x {item.name}
-                </p>
-                {item.extras?.length ? (
-                  <p className="mt-1 text-xs text-slate-500">
-                    Extras: {item.extras.join(", ")}
+            {hasItems ? (
+              order.items.map((item, idx) => (
+                <div
+                  key={`${order.id}-${idx}`}
+                  className="rounded-2xl bg-white p-3"
+                >
+                  <p className="font-medium text-slate-900">
+                    {item.qty} x {item.name}
                   </p>
-                ) : null}
+                  {item.extras?.length ? (
+                    <p className="mt-1 text-xs text-slate-500">
+                      Extras: {item.extras.join(", ")}
+                    </p>
+                  ) : null}
+                </div>
+              ))
+            ) : (
+              <div className="rounded-2xl bg-white p-3 text-sm text-slate-500">
+                Sin detalle de ítems
               </div>
-            ))}
+            )}
           </div>
         </div>
 
         <div className="grid grid-cols-2 gap-3 rounded-2xl bg-slate-50 p-3 text-sm">
           <div>
-            <p className="text-slate-500">Delivery</p>
+            <p className="text-slate-500">
+              {isPickup ? "Modalidad" : "Delivery"}
+            </p>
             <p className="font-medium text-slate-900">
-              {currency(Number(order.deliveryFee || 0))}
+              {isPickup
+                ? "Recojo en tienda"
+                : currency(Number(order.deliveryFee || 0))}
             </p>
           </div>
 
@@ -395,19 +426,22 @@ export default function KitchenBoardPage() {
     }, HIGHLIGHT_DURATION_MS);
   }, []);
 
-  const playAlertSound = useCallback(async (status: OrderStatus) => {
-    if (!soundEnabled || !audioRef.current) return;
-    if (!ALERTABLE_STATUSES.includes(status)) return;
+  const playAlertSound = useCallback(
+    async (status: OrderStatus) => {
+      if (!soundEnabled || !audioRef.current) return;
+      if (!ALERTABLE_STATUSES.includes(status)) return;
 
-    try {
-      audioRef.current.pause();
-      audioRef.current.currentTime = 0;
-      audioRef.current.playbackRate = status === "listo" ? 1.08 : 1;
-      await audioRef.current.play();
-    } catch (error) {
-      console.warn("No se pudo reproducir el audio", error);
-    }
-  }, [soundEnabled]);
+      try {
+        audioRef.current.pause();
+        audioRef.current.currentTime = 0;
+        audioRef.current.playbackRate = status === "listo" ? 1.08 : 1;
+        await audioRef.current.play();
+      } catch (error) {
+        console.warn("No se pudo reproducir el audio", error);
+      }
+    },
+    [soundEnabled]
+  );
 
   const notifyPhysicalAlert = useCallback(
     async (order: Order, nextStatus: OrderStatus) => {
@@ -439,7 +473,11 @@ export default function KitchenBoardPage() {
   );
 
   const triggerAlert = useCallback(
-    async (order: Order, nextStatus: OrderStatus, source: "remote" | "local") => {
+    async (
+      order: Order,
+      nextStatus: OrderStatus,
+      source: "remote" | "local"
+    ) => {
       highlightOrder(order.id, nextStatus);
       await playAlertSound(nextStatus);
       await notifyPhysicalAlert(order, nextStatus);
@@ -504,7 +542,15 @@ export default function KitchenBoardPage() {
           const previousStatus = previousOrdersRef.current[order.id];
           const nextStatus = order.status;
 
-          if (previousStatus && previousStatus !== nextStatus) {
+          const isNewOrder = !previousStatus;
+          const hasStatusChanged = previousStatus && previousStatus !== nextStatus;
+
+          if (isNewOrder) {
+            await triggerAlert(order, nextStatus, "remote");
+            continue;
+          }
+
+          if (hasStatusChanged) {
             await triggerAlert(order, nextStatus, "remote");
           }
         }
@@ -549,14 +595,14 @@ export default function KitchenBoardPage() {
   }, []);
 
   const districtOptions = useMemo(() => {
-  const set = new Set(
-    orders
-      .map((o) => o.district)
-      .filter((district): district is string => Boolean(district))
-  );
+    const set = new Set(
+      orders
+        .map((o) => o.district)
+        .filter((district): district is string => Boolean(district))
+    );
 
-  return ["all", ...Array.from(set).sort()];
-}, [orders]);
+    return ["all", ...Array.from(set).sort()];
+  }, [orders]);
 
   const filteredOrders = useMemo(() => {
     return orders.filter((order) => {

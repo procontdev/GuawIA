@@ -37,6 +37,9 @@ type ApiOrder = {
   total?: number | string;
   total_amount?: number | string;
 
+  deliveryType?: string;
+delivery_type?: string;
+
   deliveryFee?: number | string;
   delivery_fee?: number | string;
 

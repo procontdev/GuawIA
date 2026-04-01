@@ -18,6 +18,7 @@ export interface Order {
   notes?: string;
   total?: number | string;
   deliveryFee?: number | string;
+  deliveryType?: string;
   etaMin?: number | null;
   createdAt: string;
   updatedAt?: string | null;
