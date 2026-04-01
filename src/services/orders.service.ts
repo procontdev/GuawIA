@@ -23,10 +23,12 @@ type ApiOrder = {
   customer_name?: string;
 
   phone?: string;
+
   address?: string;
   address_text?: string;
 
   district?: string;
+
   reference?: string;
   reference_text?: string;
 
@@ -38,7 +40,7 @@ type ApiOrder = {
   total_amount?: number | string;
 
   deliveryType?: string;
-delivery_type?: string;
+  delivery_type?: string;
 
   deliveryFee?: number | string;
   delivery_fee?: number | string;
@@ -86,16 +88,20 @@ function mapDbStatusToUiStatus(status?: string): OrderStatus {
 function normalizeOrder(apiOrder: ApiOrder): Order {
   return {
     id: String(apiOrder.id ?? ""),
-    code: String(apiOrder.code ?? apiOrder.orderCode ?? apiOrder.order_code ?? ""),
+    code: String(
+      apiOrder.code ?? apiOrder.orderCode ?? apiOrder.order_code ?? ""
+    ),
     status: mapDbStatusToUiStatus(
       apiOrder.status ?? apiOrder.orderStatus ?? apiOrder.order_status
     ),
 
     customerName: apiOrder.customerName ?? apiOrder.customer_name ?? "",
     phone: apiOrder.phone ?? "",
+
     address: apiOrder.address ?? apiOrder.address_text ?? "",
     district: apiOrder.district ?? "",
     reference: apiOrder.reference ?? apiOrder.reference_text ?? "",
+
     notes:
       apiOrder.notes ??
       apiOrder.customer_notes ??
@@ -103,7 +109,12 @@ function normalizeOrder(apiOrder: ApiOrder): Order {
       "",
 
     total: Number(apiOrder.total ?? apiOrder.total_amount ?? 0),
+
+    deliveryType:
+      (apiOrder.deliveryType ?? apiOrder.delivery_type ?? "").toLowerCase(),
+
     deliveryFee: Number(apiOrder.deliveryFee ?? apiOrder.delivery_fee ?? 0),
+
     etaMin:
       apiOrder.etaMin ??
       apiOrder.eta_min ??
