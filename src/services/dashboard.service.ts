@@ -1,6 +1,16 @@
 import { apiGet, USE_MOCK_API } from "@/services/api";
 import { mockEventLeads, mockOrders } from "@/services/mock.service";
 import type { DashboardMetrics } from "@/types/dashboard.types";
+import type { Order } from "@/types/order.types";
+
+export function getTotalSalesAmount(orders: Order[]): number {
+  return orders.reduce(
+    (sum: number, order: Order) => sum + Number(order.total ?? 0),
+    0
+  );
+}
+
+
 
 function buildMetricsFromMocks(): DashboardMetrics {
   const activeOrders = mockOrders.filter((o) => o.status !== "entregado").length;
@@ -10,7 +20,12 @@ function buildMetricsFromMocks(): DashboardMetrics {
   const deliveredOrders = mockOrders.filter((o) => o.status === "entregado").length;
 
   const todayOrders = mockOrders.length;
-  const totalSalesAmount = mockOrders.reduce((sum, order) => sum + order.total, 0);
+
+  const totalSalesAmount = mockOrders.reduce(
+    (sum: number, order) => sum + Number(order.total ?? 0),
+    0
+  );
+
   const avgTicket = todayOrders ? totalSalesAmount / todayOrders : 0;
 
   const eventLeads = mockEventLeads.length;
@@ -20,6 +35,7 @@ function buildMetricsFromMocks(): DashboardMetrics {
       lead.status === "contactado" ||
       lead.status === "cotizado"
   ).length;
+
   const closedEventLeads = mockEventLeads.filter(
     (lead) => lead.status === "cerrado"
   ).length;

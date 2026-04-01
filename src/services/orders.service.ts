@@ -2,7 +2,14 @@ import { apiGet, apiPost, USE_MOCK_API } from "@/services/api";
 import { mockOrders } from "@/services/mock.service";
 import type { Order, OrderStatus } from "@/types/order.types";
 
-type ApiOrder = Partial<Order> & {
+type ApiOrderItem = {
+  qty?: number;
+  quantity?: number;
+  name?: string;
+  extras?: string[];
+};
+
+type ApiOrder = {
   id?: string;
   code?: string;
   orderCode?: string;
@@ -10,30 +17,33 @@ type ApiOrder = Partial<Order> & {
 
   status?: OrderStatus;
   orderStatus?: OrderStatus;
-  order_status?: OrderStatus;
+  order_status?: string;
 
   customerName?: string;
   customer_name?: string;
 
   phone?: string;
-
   address?: string;
+  address_text?: string;
 
   district?: string;
-
   reference?: string;
+  reference_text?: string;
 
   notes?: string;
+  customer_notes?: string;
+  internal_notes?: string;
 
   total?: number | string;
+  total_amount?: number | string;
 
   deliveryFee?: number | string;
   delivery_fee?: number | string;
 
   etaMin?: number | null;
-eta_min?: number | null;
-estimated_minutes_min?: number | null;
-estimated_minutes_max?: number | null;
+  eta_min?: number | null;
+  estimated_minutes_min?: number | null;
+  estimated_minutes_max?: number | null;
 
   createdAt?: string;
   created_at?: string;
@@ -47,39 +57,59 @@ estimated_minutes_max?: number | null;
   readyAt?: string | null;
   ready_at?: string | null;
 
-  items?: Array<{
-    qty?: number;
-    quantity?: number;
-    name?: string;
-    extras?: string[];
-  }>;
+  items?: ApiOrderItem[];
 };
+
+function mapDbStatusToUiStatus(status?: string): OrderStatus {
+  switch (status) {
+    case "confirmed":
+      return "nuevo";
+    case "in_kitchen":
+      return "preparacion";
+    case "dispatched":
+      return "listo";
+    case "delivered":
+      return "entregado";
+    case "nuevo":
+    case "preparacion":
+    case "listo":
+    case "entregado":
+      return status;
+    default:
+      return "nuevo";
+  }
+}
 
 function normalizeOrder(apiOrder: ApiOrder): Order {
   return {
     id: String(apiOrder.id ?? ""),
     code: String(apiOrder.code ?? apiOrder.orderCode ?? apiOrder.order_code ?? ""),
-    status: (apiOrder.status ??
-      apiOrder.orderStatus ??
-      apiOrder.order_status ??
-      "nuevo") as OrderStatus,
+    status: mapDbStatusToUiStatus(
+      apiOrder.status ?? apiOrder.orderStatus ?? apiOrder.order_status
+    ),
 
     customerName: apiOrder.customerName ?? apiOrder.customer_name ?? "",
     phone: apiOrder.phone ?? "",
-    address: apiOrder.address ?? "",
+    address: apiOrder.address ?? apiOrder.address_text ?? "",
     district: apiOrder.district ?? "",
-    reference: apiOrder.reference ?? "",
-    notes: apiOrder.notes ?? "",
+    reference: apiOrder.reference ?? apiOrder.reference_text ?? "",
+    notes:
+      apiOrder.notes ??
+      apiOrder.customer_notes ??
+      apiOrder.internal_notes ??
+      "",
 
-    total: Number(apiOrder.total ?? 0),
+    total: Number(apiOrder.total ?? apiOrder.total_amount ?? 0),
     deliveryFee: Number(apiOrder.deliveryFee ?? apiOrder.delivery_fee ?? 0),
     etaMin:
-  apiOrder.etaMin ??
-  apiOrder.eta_min ??
-  apiOrder.estimated_minutes_min ??
-  null,
+      apiOrder.etaMin ??
+      apiOrder.eta_min ??
+      apiOrder.estimated_minutes_min ??
+      null,
 
-    createdAt: String(apiOrder.createdAt ?? apiOrder.created_at ?? new Date().toISOString()),
+    createdAt: String(
+      apiOrder.createdAt ?? apiOrder.created_at ?? new Date().toISOString()
+    ),
     updatedAt: apiOrder.updatedAt ?? apiOrder.updated_at ?? null,
 
     preparationStartedAt:
@@ -134,7 +164,9 @@ export async function updateOrderStatus(
   return {
     ok: response?.ok ?? true,
     orderId: String(response?.orderId ?? response?.id ?? orderId),
-    status: (response?.status ?? rawOrder?.status ?? rawOrder?.order_status ?? status) as OrderStatus,
+    status: rawOrder
+      ? normalizeOrder(rawOrder).status
+      : mapDbStatusToUiStatus(response?.status),
     order: rawOrder ? normalizeOrder(rawOrder) : undefined,
   };
 }

@@ -74,13 +74,6 @@ const STATUS_OPTIONS: OrderStatus[] = [
 
 const ALERTABLE_STATUSES: OrderStatus[] = ["nuevo", "preparacion", "listo"];
 
-function resolvePreparationStart(order: Order) {
-  return order.preparationStartedAt || order.updatedAt || order.createdAt;
-}
-
-function resolveReadyAt(order: Order) {
-  return order.readyAt || order.updatedAt || null;
-}
 
 function minutesSince(dateIso: string) {
   return Math.max(
@@ -556,9 +549,14 @@ export default function KitchenBoardPage() {
   }, []);
 
   const districtOptions = useMemo(() => {
-    const set = new Set(orders.map((o) => o.district).filter(Boolean));
-    return ["all", ...Array.from(set).sort()];
-  }, [orders]);
+  const set = new Set(
+    orders
+      .map((o) => o.district)
+      .filter((district): district is string => Boolean(district))
+  );
+
+  return ["all", ...Array.from(set).sort()];
+}, [orders]);
 
   const filteredOrders = useMemo(() => {
     return orders.filter((order) => {
