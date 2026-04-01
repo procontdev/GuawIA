@@ -1,5 +1,5 @@
 import { toast } from "sonner";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   RefreshCw,
   Clock3,
@@ -12,6 +12,9 @@ import {
   Package2,
   Flame,
   AlertCircle,
+  Bell,
+  BellOff,
+  Siren,
 } from "lucide-react";
 import { Button } from "@/ui/button";
 import { Badge } from "@/ui/badge";
@@ -29,6 +32,8 @@ import type { Order, OrderStatus } from "@/types/order.types";
 import { fetchOrders, updateOrderStatus } from "@/services/orders.service";
 
 const REFRESH_INTERVAL_MS = 8000;
+const HIGHLIGHT_DURATION_MS = 12000;
+const ALERT_WEBHOOK_URL = import.meta.env.VITE_ALERT_WEBHOOK_URL || "";
 
 const STATUS_META: Record<
   OrderStatus,
@@ -66,6 +71,16 @@ const STATUS_OPTIONS: OrderStatus[] = [
   "listo",
   "entregado",
 ];
+
+const ALERTABLE_STATUSES: OrderStatus[] = ["nuevo", "preparacion", "listo"];
+
+function resolvePreparationStart(order: Order) {
+  return order.preparationStartedAt || order.updatedAt || order.createdAt;
+}
+
+function resolveReadyAt(order: Order) {
+  return order.readyAt || order.updatedAt || null;
+}
 
 function minutesSince(dateIso: string) {
   return Math.max(
@@ -130,19 +145,44 @@ function KPI({
   );
 }
 
+function getHighlightStyles(status: OrderStatus) {
+  switch (status) {
+    case "nuevo":
+      return "ring-4 ring-red-500/70 border-red-300 bg-red-50/50 animate-pulse";
+    case "preparacion":
+      return "ring-4 ring-amber-500/70 border-amber-300 bg-amber-50/60";
+    case "listo":
+      return "ring-4 ring-emerald-500/70 border-emerald-300 bg-emerald-50/60 animate-pulse";
+    case "entregado":
+      return "ring-4 ring-slate-400/60 border-slate-300 bg-slate-50";
+    default:
+      return "";
+  }
+}
+
 function OrderCard({
   order,
   onStatusChange,
+  isHighlighted = false,
+  highlightedStatus,
 }: {
   order: Order;
   onStatusChange: (orderId: string, nextStatus: OrderStatus) => void;
+  isHighlighted?: boolean;
+  highlightedStatus?: OrderStatus;
 }) {
   const waitingMinutes = minutesSince(order.createdAt);
   const isDelayed = waitingMinutes >= 20 && order.status !== "entregado";
 
   return (
     <Card
-      className={`rounded-3xl border shadow-sm ${STATUS_META[order.status].border}`}
+      className={[
+        "rounded-3xl border shadow-sm transition-all duration-300",
+        STATUS_META[order.status].border,
+        isHighlighted && highlightedStatus
+          ? getHighlightStyles(highlightedStatus)
+          : "",
+      ].join(" ")}
     >
       <CardHeader className="space-y-3 pb-3">
         <div className="flex items-start justify-between gap-3">
@@ -150,16 +190,26 @@ function OrderCard({
             <CardTitle className="text-lg font-semibold text-slate-900">
               {order.code}
             </CardTitle>
+
             <div className="mt-2 flex flex-wrap items-center gap-2">
               <StatusPill status={order.status} />
+
               <Badge variant="outline" className="rounded-full">
                 <Clock3 className="mr-1 h-3.5 w-3.5" />
                 {relativeAgeLabel(order.createdAt)}
               </Badge>
+
               {isDelayed ? (
                 <Badge className="rounded-full gap-1 bg-red-600 text-white hover:bg-red-600">
                   <AlertCircle className="h-3.5 w-3.5" />
                   Atención
+                </Badge>
+              ) : null}
+
+              {isHighlighted && highlightedStatus ? (
+                <Badge className="rounded-full gap-1 bg-slate-900 text-white hover:bg-slate-900">
+                  <Siren className="h-3.5 w-3.5" />
+                  Estado actualizado
                 </Badge>
               ) : null}
             </div>
@@ -182,10 +232,12 @@ function OrderCard({
               {order.customerName || "Sin nombre"}
             </span>
           </div>
+
           <div className="flex items-center gap-2 text-slate-700">
             <Phone className="h-4 w-4" />
             <span>{order.phone || "Sin teléfono"}</span>
           </div>
+
           <div className="flex items-start gap-2 text-slate-700">
             <MapPin className="mt-0.5 h-4 w-4" />
             <div>
@@ -227,6 +279,7 @@ function OrderCard({
               {currency(Number(order.deliveryFee || 0))}
             </p>
           </div>
+
           <div>
             <p className="text-slate-500">ETA</p>
             <p className="font-medium text-slate-900">
@@ -267,11 +320,13 @@ function StatusColumn({
   status,
   orders,
   onStatusChange,
+  highlightedOrders,
 }: {
   title: string;
   status: OrderStatus;
   orders: Order[];
   onStatusChange: (orderId: string, nextStatus: OrderStatus) => void;
+  highlightedOrders: Record<string, OrderStatus>;
 }) {
   const Icon = STATUS_META[status].icon;
 
@@ -296,6 +351,8 @@ function StatusColumn({
               key={order.id}
               order={order}
               onStatusChange={onStatusChange}
+              isHighlighted={Boolean(highlightedOrders[order.id])}
+              highlightedStatus={highlightedOrders[order.id]}
             />
           ))
         ) : (
@@ -317,18 +374,168 @@ export default function KitchenBoardPage() {
   const [viewMode, setViewMode] = useState("board");
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [loading, setLoading] = useState(true);
+  const [soundEnabled, setSoundEnabled] = useState(false);
+  const [highlightedOrders, setHighlightedOrders] = useState<
+    Record<string, OrderStatus>
+  >({});
 
-  const loadOrders = async () => {
+  const previousOrdersRef = useRef<Record<string, OrderStatus>>({});
+  const initializedRef = useRef(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const timeoutRefs = useRef<Record<string, number>>({});
+
+  const highlightOrder = useCallback((orderId: string, status: OrderStatus) => {
+    setHighlightedOrders((prev) => ({ ...prev, [orderId]: status }));
+
+    const existingTimeout = timeoutRefs.current[orderId];
+    if (existingTimeout) {
+      window.clearTimeout(existingTimeout);
+    }
+
+    timeoutRefs.current[orderId] = window.setTimeout(() => {
+      setHighlightedOrders((prev) => {
+        const next = { ...prev };
+        delete next[orderId];
+        return next;
+      });
+      delete timeoutRefs.current[orderId];
+    }, HIGHLIGHT_DURATION_MS);
+  }, []);
+
+  const playAlertSound = useCallback(async (status: OrderStatus) => {
+    if (!soundEnabled || !audioRef.current) return;
+    if (!ALERTABLE_STATUSES.includes(status)) return;
+
     try {
-      const data = await fetchOrders();
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+      audioRef.current.playbackRate = status === "listo" ? 1.08 : 1;
+      await audioRef.current.play();
+    } catch (error) {
+      console.warn("No se pudo reproducir el audio", error);
+    }
+  }, [soundEnabled]);
+
+  const notifyPhysicalAlert = useCallback(
+    async (order: Order, nextStatus: OrderStatus) => {
+      if (!ALERT_WEBHOOK_URL) return;
+      if (!ALERTABLE_STATUSES.includes(nextStatus)) return;
+
+      try {
+        await fetch(ALERT_WEBHOOK_URL, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            orderId: order.id,
+            orderCode: order.code,
+            customerName: order.customerName,
+            phone: order.phone,
+            previousStatus: previousOrdersRef.current[order.id] || null,
+            nextStatus,
+            source: "kitchen-board",
+            triggeredAt: new Date().toISOString(),
+          }),
+        });
+      } catch (error) {
+        console.error("No se pudo disparar la alerta física", error);
+      }
+    },
+    []
+  );
+
+  const triggerAlert = useCallback(
+    async (order: Order, nextStatus: OrderStatus, source: "remote" | "local") => {
+      highlightOrder(order.id, nextStatus);
+      await playAlertSound(nextStatus);
+      await notifyPhysicalAlert(order, nextStatus);
+
+      toast.success(
+        source === "remote"
+          ? "Cambio detectado en tiempo real"
+          : "Estado del pedido actualizado",
+        {
+          description: `${order.code || "Pedido"} ahora está en "${STATUS_META[nextStatus].label}".`,
+        }
+      );
+    },
+    [highlightOrder, notifyPhysicalAlert, playAlertSound]
+  );
+
+  const enableSound = useCallback(async () => {
+    try {
+      if (!audioRef.current) {
+        audioRef.current = new Audio("/sounds/order-alert.mp3");
+      }
+
+      audioRef.current.volume = 1;
+      audioRef.current.preload = "auto";
+
+      await audioRef.current.play();
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+
+      setSoundEnabled(true);
+
+      toast.success("Alertas sonoras activadas", {
+        description: "El tablero ya puede reproducir alarmas.",
+      });
+    } catch (error) {
+      console.error("No se pudo habilitar el audio", error);
+      toast.error("No se pudo habilitar el audio", {
+        description:
+          "Haz clic nuevamente después de interactuar con la página.",
+      });
+    }
+  }, []);
+
+  const disableSound = useCallback(() => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+    }
+    setSoundEnabled(false);
+    toast("Alertas sonoras desactivadas");
+  }, []);
+
+  const processIncomingOrders = useCallback(
+    async (data: Order[]) => {
+      const nextStatusMap: Record<string, OrderStatus> = {};
+      data.forEach((order) => {
+        nextStatusMap[order.id] = order.status;
+      });
+
+      if (initializedRef.current) {
+        for (const order of data) {
+          const previousStatus = previousOrdersRef.current[order.id];
+          const nextStatus = order.status;
+
+          if (previousStatus && previousStatus !== nextStatus) {
+            await triggerAlert(order, nextStatus, "remote");
+          }
+        }
+      } else {
+        initializedRef.current = true;
+      }
+
+      previousOrdersRef.current = nextStatusMap;
       setOrders(data);
       setLastUpdated(new Date());
+    },
+    [triggerAlert]
+  );
+
+  const loadOrders = useCallback(async () => {
+    try {
+      const data = await fetchOrders();
+      await processIncomingOrders(data);
     } catch (error) {
       console.error("Error loading orders", error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [processIncomingOrders]);
 
   useEffect(() => {
     loadOrders();
@@ -338,6 +545,14 @@ export default function KitchenBoardPage() {
     }, REFRESH_INTERVAL_MS);
 
     return () => clearInterval(id);
+  }, [loadOrders]);
+
+  useEffect(() => {
+    return () => {
+      Object.values(timeoutRefs.current).forEach((timeoutId) => {
+        window.clearTimeout(timeoutId);
+      });
+    };
   }, []);
 
   const districtOptions = useMemo(() => {
@@ -349,8 +564,8 @@ export default function KitchenBoardPage() {
     return orders.filter((order) => {
       const text =
         `${order.code} ${order.customerName} ${order.phone} ${order.address} ${order.district}`.toLowerCase();
-      const matchesSearch =
-        !search || text.includes(search.toLowerCase());
+
+      const matchesSearch = !search || text.includes(search.toLowerCase());
       const matchesDistrict =
         districtFilter === "all" || order.district === districtFilter;
 
@@ -384,37 +599,47 @@ export default function KitchenBoardPage() {
     };
   }, [orders]);
 
- const handleStatusChange = async (
-  orderId: string,
-  nextStatus: OrderStatus
-) => {
-  const previous = orders;
-  const order = orders.find((o) => o.id === orderId);
+  const handleStatusChange = async (
+    orderId: string,
+    nextStatus: OrderStatus
+  ) => {
+    const previous = orders;
+    const order = orders.find((o) => o.id === orderId);
 
-  setOrders((current) =>
-    current.map((o) =>
-      o.id === orderId ? { ...o, status: nextStatus } : o
-    )
-  );
+    setOrders((current) =>
+      current.map((o) => (o.id === orderId ? { ...o, status: nextStatus } : o))
+    );
 
-  try {
-    await updateOrderStatus(orderId, nextStatus);
-    setLastUpdated(new Date());
+    try {
+      await updateOrderStatus(orderId, nextStatus);
+      setLastUpdated(new Date());
 
-    toast.success("Estado del pedido actualizado", {
-      description: `${order?.code || "Pedido"} ahora está en "${STATUS_META[nextStatus].label}".`,
-    });
-  } catch (error) {
-    console.error("Error updating order status", error);
-    setOrders(previous);
+      const updatedOrder =
+        previous.find((o) => o.id === orderId) &&
+        ({
+          ...(previous.find((o) => o.id === orderId) as Order),
+          status: nextStatus,
+        } as Order);
 
-    toast.error("No se pudo actualizar el pedido", {
-      description: order?.code
-        ? `Se revirtió el cambio para ${order.code}.`
-        : "Se revirtió el cambio realizado.",
-    });
-  }
-};
+      if (updatedOrder) {
+        previousOrdersRef.current[orderId] = nextStatus;
+        await triggerAlert(updatedOrder, nextStatus, "local");
+      } else {
+        toast.success("Estado del pedido actualizado", {
+          description: `${order?.code || "Pedido"} ahora está en "${STATUS_META[nextStatus].label}".`,
+        });
+      }
+    } catch (error) {
+      console.error("Error updating order status", error);
+      setOrders(previous);
+
+      toast.error("No se pudo actualizar el pedido", {
+        description: order?.code
+          ? `Se revirtió el cambio para ${order.code}.`
+          : "Se revirtió el cambio realizado.",
+      });
+    }
+  };
 
   if (loading) {
     return (
@@ -457,8 +682,29 @@ export default function KitchenBoardPage() {
         />
       </section>
 
+      {!soundEnabled ? (
+        <Card className="rounded-3xl border-amber-200 bg-amber-50 shadow-sm">
+          <CardContent className="flex flex-col gap-3 p-5 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p className="font-semibold text-amber-900">
+                Activa el audio del tablero
+              </p>
+              <p className="text-sm text-amber-800">
+                El navegador necesita una interacción para permitir alarmas
+                sonoras.
+              </p>
+            </div>
+
+            <Button className="rounded-2xl" onClick={enableSound}>
+              <Bell className="mr-2 h-4 w-4" />
+              Activar alertas sonoras
+            </Button>
+          </CardContent>
+        </Card>
+      ) : null}
+
       <section className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="grid gap-3 lg:grid-cols-[1.3fr_220px_260px_220px]">
+        <div className="grid gap-3 lg:grid-cols-[1.3fr_220px_260px_220px_170px]">
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -498,6 +744,24 @@ export default function KitchenBoardPage() {
             </span>
             <RefreshCw className="h-4 w-4" />
           </div>
+
+          <Button
+            variant={soundEnabled ? "default" : "outline"}
+            className="h-12 rounded-2xl"
+            onClick={soundEnabled ? disableSound : enableSound}
+          >
+            {soundEnabled ? (
+              <>
+                <Bell className="mr-2 h-4 w-4" />
+                Audio activo
+              </>
+            ) : (
+              <>
+                <BellOff className="mr-2 h-4 w-4" />
+                Audio inactivo
+              </>
+            )}
+          </Button>
         </div>
       </section>
 
@@ -509,24 +773,28 @@ export default function KitchenBoardPage() {
               status="nuevo"
               orders={grouped.nuevo}
               onStatusChange={handleStatusChange}
+              highlightedOrders={highlightedOrders}
             />
             <StatusColumn
               title="En preparación"
               status="preparacion"
               orders={grouped.preparacion}
               onStatusChange={handleStatusChange}
+              highlightedOrders={highlightedOrders}
             />
             <StatusColumn
               title="Listos"
               status="listo"
               orders={grouped.listo}
               onStatusChange={handleStatusChange}
+              highlightedOrders={highlightedOrders}
             />
             <StatusColumn
               title="Entregados"
               status="entregado"
               orders={grouped.entregado}
               onStatusChange={handleStatusChange}
+              highlightedOrders={highlightedOrders}
             />
           </div>
         </section>
@@ -538,6 +806,8 @@ export default function KitchenBoardPage() {
                 key={order.id}
                 order={order}
                 onStatusChange={handleStatusChange}
+                isHighlighted={Boolean(highlightedOrders[order.id])}
+                highlightedStatus={highlightedOrders[order.id]}
               />
             ))
           ) : (
