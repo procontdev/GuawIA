@@ -3,6 +3,7 @@ import {
   LayoutDashboard,
   ClipboardList,
   CalendarRange,
+  MapPinned,
   Package2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -29,6 +30,11 @@ const items = [
     to: "/events",
     label: "Leads de Eventos",
     icon: CalendarRange,
+  },
+  {
+    to: "/delivery-zones",
+    label: "Zonas de Delivery",
+    icon: MapPinned,
   },
 ];
 

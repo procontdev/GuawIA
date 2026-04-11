@@ -4,7 +4,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT\n  o.id,\n  'GW-' || upper(left(replace(o.id::text, '-', ''), 8)) AS code,\n  CASE\n    WHEN o.order_status IN ('pending_confirmation', 'confirmed') THEN 'nuevo'\n    WHEN o.order_status = 'in_kitchen' THEN 'preparacion'\n    WHEN o.order_status = 'dispatched' THEN 'listo'\n    WHEN o.order_status = 'delivered' THEN 'entregado'\n    ELSE 'nuevo'\n  END AS status,\n  COALESCE(o.confirmed_at, o.requested_at, o.created_at) AS \"createdAt\",\n  COALESCE(o.estimated_minutes_max, o.estimated_minutes_min, 45) AS \"etaMin\",\n  COALESCE(c.full_name, '') AS \"customerName\",\n  COALESCE(c.phone, '') AS phone,\n  COALESCE(o.district, '') AS district,\n  COALESCE(o.address_text, '') AS address,\n  COALESCE(o.reference_text, '') AS reference,\n\n  COALESCE(o.delivery_fee, 0)::float8 AS \"deliveryFee\",\n\n  COALESCE(\n    NULLIF(o.total_amount, 0),\n    (\n      COALESCE(\n        (\n          SELECT SUM(oi.line_subtotal)\n          FROM guaw.order_items oi\n          WHERE oi.order_id = o.id\n        ),\n        0\n      )\n      +\n      COALESCE(o.delivery_fee, 0)\n    )\n  )::float8 AS total,\n\n  COALESCE(o.customer_notes, o.internal_notes, '') AS notes,\n\n  COALESCE(\n    (\n      SELECT json_agg(\n        json_build_object(\n          'name', oi.item_name_snapshot,\n          'qty', oi.quantity,\n          'extras',\n            COALESCE(\n              (\n                SELECT json_agg(oie.extra_name ORDER BY oie.created_at)\n                FROM guaw.order_item_extras oie\n                WHERE oie.order_item_id = oi.id\n              ),\n              '[]'::json\n            )\n        )\n        ORDER BY oi.created_at\n      )\n      FROM guaw.order_items oi\n      WHERE oi.order_id = o.id\n    ),\n    '[]'::json\n  ) AS items\n\nFROM guaw.orders o\nLEFT JOIN guaw.customers c\n  ON c.id = o.customer_id\nWHERE o.order_status IN (\n  'pending_confirmation',\n  'confirmed',\n  'in_kitchen',\n  'dispatched',\n  'delivered'\n)\nORDER BY COALESCE(o.confirmed_at, o.requested_at, o.created_at) DESC\nLIMIT 100;",
+        "query": "SELECT\n  o.id,\n  'GW-' || upper(left(replace(o.id::text, '-', ''), 8)) AS code,\n  CASE\n    WHEN o.order_status = 'draft' THEN 'borrador'\n    WHEN o.order_status = 'pending_confirmation' THEN 'por_confirmar'\n    WHEN o.order_status = 'confirmed' THEN 'confirmado'\n    WHEN o.order_status = 'pending_payment' THEN 'pendiente_pago'\n    WHEN o.order_status = 'paid_pending_confirmation' THEN 'pagado_por_confirmar'\n    WHEN o.order_status = 'in_kitchen' THEN 'preparacion'\n    WHEN o.order_status = 'dispatched' THEN 'listo'\n    WHEN o.order_status = 'delivered' THEN 'entregado'\n    WHEN o.order_status = 'cancelled' THEN 'cancelado'\n    ELSE 'por_confirmar'\n  END AS status,\n\n  COALESCE(o.confirmed_at, o.requested_at, o.created_at) AS \"createdAt\",\n  COALESCE(o.updated_at, o.created_at) AS \"updatedAt\",\n  COALESCE(o.estimated_minutes_max, o.estimated_minutes_min, 45) AS \"etaMin\",\n\n  COALESCE(c.full_name, '') AS \"customerName\",\n  COALESCE(c.phone, '') AS phone,\n  COALESCE(o.district, '') AS district,\n  COALESCE(o.address_text, '') AS address,\n  COALESCE(o.reference_text, '') AS reference,\n\n  COALESCE(o.delivery_fee, 0)::float8 AS \"deliveryFee\",\n  COALESCE(o.delivery_type, '') AS \"deliveryType\",\n  COALESCE(o.subtotal, 0)::float8 AS subtotal,\n\n  COALESCE(\n    NULLIF(o.total_amount, 0),\n    (\n      COALESCE(\n        (\n          SELECT SUM(COALESCE(oi.line_subtotal, 0))\n          FROM guaw.order_items oi\n          WHERE oi.order_id = o.id\n        ),\n        0\n      )\n      +\n      COALESCE(o.delivery_fee, 0)\n    )\n  )::float8 AS total,\n\n  COALESCE(o.customer_notes, o.internal_notes, '') AS notes,\n\n  CASE\n    WHEN pr.id IS NOT NULL THEN true\n    ELSE false\n  END AS \"hasReceipt\",\n\n  pr.id AS \"paymentReceiptId\",\n  COALESCE(pr.storage_file_name, '') AS \"receiptFileName\",\n  COALESCE(pr.storage_path, '') AS \"receiptStoragePath\",\n  COALESCE(pr.storage_bucket, '') AS \"receiptStorageBucket\",\n\n  COALESCE(\n    (\n      SELECT json_agg(\n        json_build_object(\n          'id', oi.id,\n          'name', oi.item_name_snapshot,\n          'qty', COALESCE(oi.quantity, 0),\n          'unitPrice', COALESCE(oi.unit_price, 0)::float8,\n          'lineSubtotal', COALESCE(oi.line_subtotal, 0)::float8,\n          'notes', oi.notes,\n          'extras',\n            COALESCE(\n              (\n                SELECT json_agg(oie.extra_name ORDER BY oie.created_at)\n                FROM guaw.order_item_extras oie\n                WHERE oie.order_item_id = oi.id\n              ),\n              '[]'::json\n            ),\n          'extraItems',\n            COALESCE(\n              (\n                SELECT json_agg(\n                  json_build_object(\n                    'id', oie.id,\n                    'extraName', oie.extra_name,\n                    'extraUnitPrice', COALESCE(oie.extra_unit_price, 0)::float8,\n                    'subtotal', COALESCE(oie.subtotal, 0)::float8,\n                    'quantity', COALESCE(oie.quantity, 1)\n                  )\n                  ORDER BY oie.created_at\n                )\n                FROM guaw.order_item_extras oie\n                WHERE oie.order_item_id = oi.id\n              ),\n              '[]'::json\n            )\n        )\n        ORDER BY oi.created_at\n      )\n      FROM guaw.order_items oi\n      WHERE oi.order_id = o.id\n    ),\n    '[]'::json\n  ) AS items\n\nFROM guaw.orders o\nLEFT JOIN guaw.customers c\n  ON c.id = o.customer_id\nLEFT JOIN LATERAL (\n  SELECT\n    r.id,\n    r.storage_file_name,\n    r.storage_path,\n    r.storage_bucket\n  FROM guaw.payment_receipts r\n  WHERE r.order_id = o.id\n  ORDER BY COALESCE(r.updated_at, r.created_at) DESC\n  LIMIT 1\n) pr ON true\nWHERE o.order_status IN (\n  'draft',\n  'pending_confirmation',\n  'confirmed',\n  'pending_payment',\n  'paid_pending_confirmation',\n  'in_kitchen',\n  'dispatched',\n  'delivered',\n  'cancelled'\n)\nORDER BY COALESCE(o.confirmed_at, o.requested_at, o.created_at) DESC\nLIMIT 100;",
         "options": {}
       },
       "type": "n8n-nodes-base.postgres",
@@ -38,21 +38,8 @@
     },
     {
       "parameters": {
-        "jsCode": "return [\n  {\n    json: {\n      data: $input.all().map(item => item.json)\n    }\n  }\n];"
-      },
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        -960,
-        -80
-      ],
-      "id": "0fbb9528-ce6c-4263-8fe0-b5816d964143",
-      "name": "Code in JavaScript"
-    },
-    {
-      "parameters": {
         "operation": "executeQuery",
-        "query": "UPDATE guaw.orders\nSET\n  order_status = '{{ $json.dbStatus }}',\n  updated_at = NOW()\nWHERE id = '{{ $json.orderId }}'\nRETURNING id, order_status, updated_at;",
+        "query": "UPDATE guaw.orders\nSET\n  order_status = '{{ $json.dbStatus }}',\n  updated_at = NOW(),\n  preparation_started_at = CASE\n    WHEN '{{ $json.dbStatus }}' = 'confirmed' THEN NULL\n    WHEN '{{ $json.dbStatus }}' = 'in_kitchen' AND preparation_started_at IS NULL THEN NOW()\n    ELSE preparation_started_at\n  END,\n  ready_at = CASE\n    WHEN '{{ $json.dbStatus }}' IN ('confirmed', 'in_kitchen') THEN NULL\n    WHEN '{{ $json.dbStatus }}' = 'dispatched' THEN NOW()\n    ELSE ready_at\n  END\nWHERE id = '{{ $json.orderId }}'\nRETURNING\n  id,\n  order_status,\n  address_text,\n  district,\n  reference_text,\n  delivery_fee,\n  total_amount,\n  estimated_minutes_min,\n  estimated_minutes_max,\n  customer_notes,\n  internal_notes,\n  created_at,\n  updated_at,\n  preparation_started_at,\n  ready_at;",
         "options": {}
       },
       "type": "n8n-nodes-base.postgres",
@@ -73,7 +60,7 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{\n{\n  \"ok\": true,\n  \"id\": $json.id,\n  \"dbStatus\": $json.order_status,\n  \"updatedAt\": $json.updated_at\n}\n}}",
+        "responseBody": "={{\n{\n  \"ok\": true,\n  \"orderId\": $json.id,\n  \"dbStatus\": $json.order_status,\n  \"order\": {\n    \"id\": $json.id,\n    \"status\": $json.order_status === \"draft\"\n      ? \"borrador\"\n      : $json.order_status === \"pending_confirmation\"\n      ? \"por_confirmar\"\n      : $json.order_status === \"confirmed\"\n      ? \"confirmado\"\n      : $json.order_status === \"pending_payment\"\n      ? \"pendiente_pago\"\n      : $json.order_status === \"paid_pending_confirmation\"\n      ? \"pagado_por_confirmar\"\n      : $json.order_status === \"in_kitchen\"\n      ? \"preparacion\"\n      : $json.order_status === \"dispatched\"\n      ? \"listo\"\n      : $json.order_status === \"delivered\"\n      ? \"entregado\"\n      : $json.order_status === \"cancelled\"\n      ? \"cancelado\"\n      : $json.order_status,\n    \"address\": $json.address_text,\n    \"district\": $json.district,\n    \"reference\": $json.reference_text,\n    \"deliveryFee\": $json.delivery_fee,\n    \"total\": $json.total_amount,\n    \"etaMin\": $json.estimated_minutes_min,\n    \"etaMax\": $json.estimated_minutes_max,\n    \"notes\": $json.customer_notes,\n    \"internalNotes\": $json.internal_notes,\n    \"createdAt\": $json.created_at,\n    \"updatedAt\": $json.updated_at,\n    \"preparationStartedAt\": $json.preparation_started_at,\n    \"readyAt\": $json.ready_at\n  }\n}\n}}",
         "options": {}
       },
       "type": "n8n-nodes-base.respondToWebhook",
@@ -99,7 +86,78 @@
       ],
       "id": "b01c48db-3d86-4b23-9691-735dc476500a",
       "name": "GetOrders - Webhool",
-      "webhookId": "add1ef27-ea94-4ea0-8af1-ed1eb5b2a20a"
+      "webhookId": "add1ef27-ea94-4ea0-8af1-ed1eb5b2a20a",
+      "options": {
+        "allowedOrigins": "*"
+      }
+    },
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "orders/detail",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -112,
+        -336
+      ],
+      "id": "e6a0d282-3d86-4b23-9691-735dc476500a",
+      "name": "GetOrderDetail - Webhook",
+      "webhookId": "detail-order-webhook"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT\n  o.id,\n  'GW-' || upper(left(replace(o.id::text, '-', ''), 8)) AS code,\n  CASE\n    WHEN o.order_status = 'draft' THEN 'borrador'\n    WHEN o.order_status = 'pending_confirmation' THEN 'por_confirmar'\n    WHEN o.order_status = 'confirmed' THEN 'confirmado'\n    WHEN o.order_status = 'pending_payment' THEN 'pendiente_pago'\n    WHEN o.order_status = 'paid_pending_confirmation' THEN 'pagado_por_confirmar'\n    WHEN o.order_status = 'in_kitchen' THEN 'preparacion'\n    WHEN o.order_status = 'dispatched' THEN 'listo'\n    WHEN o.order_status = 'delivered' THEN 'entregado'\n    WHEN o.order_status = 'cancelled' THEN 'cancelado'\n    ELSE 'por_confirmar'\n  END AS status,\n\n  COALESCE(o.confirmed_at, o.requested_at, o.created_at) AS \"createdAt\",\n  COALESCE(o.updated_at, o.created_at) AS \"updatedAt\",\n  COALESCE(o.estimated_minutes_max, o.estimated_minutes_min, 45) AS \"etaMin\",\n\n  COALESCE(c.full_name, '') AS \"customerName\",\n  COALESCE(c.phone, '') AS phone,\n  COALESCE(o.district, '') AS district,\n  COALESCE(o.address_text, '') AS address,\n  COALESCE(o.reference_text, '') AS reference,\n\n  COALESCE(o.delivery_fee, 0)::float8 AS \"deliveryFee\",\n  COALESCE(o.delivery_type, '') AS \"deliveryType\",\n  COALESCE(o.subtotal, 0)::float8 AS subtotal,\n  COALESCE(o.total_amount, 0)::float8 AS total,\n\n  COALESCE(o.customer_notes, o.internal_notes, '') AS notes,\n\n  -- Auditoria de delivery\n  o.coverage_status AS \"coverageStatus\",\n  o.delivery_confidence AS \"deliveryConfidence\",\n  o.delivery_resolution_method AS \"deliveryResolutionMethod\",\n  o.delivery_resolution_detail AS \"deliveryResolutionDetail\",\n\n  CASE\n    WHEN pr.id IS NOT NULL THEN true\n    ELSE false\n  END AS \"hasReceipt\",\n\n  pr.id AS \"paymentReceiptId\",\n  COALESCE(pr.storage_file_name, '') AS \"receiptFileName\",\n  COALESCE(pr.storage_path, '') AS \"receiptStoragePath\",\n  COALESCE(pr.storage_bucket, '') AS \"receiptStorageBucket\",\n\n  COALESCE(\n    (\n      SELECT json_agg(\n        json_build_object(\n          'id', oi.id,\n          'item_name_snapshot', oi.item_name_snapshot,\n          'quantity', COALESCE(oi.quantity, 0),\n          'unit_price', COALESCE(oi.unit_price, 0)::float8,\n          'line_subtotal', COALESCE(oi.line_subtotal, 0)::float8,\n          'notes', oi.notes,\n          'extra_items',\n            COALESCE(\n              (\n                SELECT json_agg(\n                  json_build_object(\n                    'id', oie.id,\n                    'extra_name', oie.extra_name,\n                    'extra_unit_price', COALESCE(oie.extra_unit_price, 0)::float8,\n                    'quantity', COALESCE(oie.quantity, 1),\n                    'subtotal', COALESCE(oie.subtotal, 0)::float8\n                  )\n                  ORDER BY oie.created_at\n                )\n                FROM guaw.order_item_extras oie\n                WHERE oie.order_item_id = oi.id\n              ),\n              '[]'::json\n            )\n        )\n        ORDER BY oi.created_at\n      )\n      FROM guaw.order_items oi\n      WHERE oi.order_id = o.id\n    ),\n    '[]'::json\n  ) AS items\n\nFROM guaw.orders o\nLEFT JOIN guaw.customers c\n  ON c.id = o.customer_id\nLEFT JOIN LATERAL (\n  SELECT r.id, r.storage_file_name, r.storage_path, r.storage_bucket\n  FROM guaw.payment_receipts r\n  WHERE r.order_id = o.id\n  ORDER BY COALESCE(r.updated_at, r.created_at) DESC\n  LIMIT 1\n) pr ON true\nWHERE o.id = '{{ $json.query.id }}'::uuid\nLIMIT 1;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        112,
+        -336
+      ],
+      "id": "e6a0d282-3d86-4b23-9691-735dc476500b",
+      "name": "QueryOrderDetail",
+      "credentials": {
+        "postgres": {
+          "id": "GSsEb41ZiGr8tdb3",
+          "name": "Supabase Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{\n{\n  \"ok\": true,\n  \"order\": $json\n}\n}}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              },
+              {
+                "name": "Access-Control-Allow-Methods",
+                "value": "GET, OPTIONS"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        368,
+        -336
+      ],
+      "id": "e6a0d282-3d86-4b23-9691-735dc476500c",
+      "name": "Respond Order Detail"
     },
     {
       "parameters": {
@@ -116,7 +174,10 @@
       ],
       "id": "55c40697-c38d-436b-b41a-cd006b103e66",
       "name": "UpdateOrderState - Webhook",
-      "webhookId": "533fdde1-65b7-4bd4-b732-82122c8632eb"
+      "webhookId": "533fdde1-65b7-4bd4-b732-82122c8632eb",
+      "options": {
+        "allowedOrigins": "*"
+      }
     },
     {
       "parameters": {
@@ -132,7 +193,10 @@
       ],
       "id": "1a6ac35d-2e3e-4933-9718-18b3d76c4c44",
       "name": "GetEventLeads - Webhook",
-      "webhookId": "45247a90-1b1d-4893-9355-195a8abfa2be"
+      "webhookId": "45247a90-1b1d-4893-9355-195a8abfa2be",
+      "options": {
+        "allowedOrigins": "*"
+      }
     },
     {
       "parameters": {
@@ -201,7 +265,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const orderId = $json.body?.orderId;\nconst status = $json.body?.status;\n\nconst statusMap = {\n  nuevo: \"confirmed\",\n  preparacion: \"in_kitchen\",\n  listo: \"dispatched\",\n  entregado: \"delivered\",\n};\n\nreturn [\n  {\n    json: {\n      orderId,\n      uiStatus: status,\n      dbStatus: statusMap[status] || \"confirmed\",\n    }\n  }\n];"
+        "jsCode": "const body = $json.body ?? {};\n\nconst orderId = body.orderId ?? body.id;\nconst rawStatus =\n  body.status ??\n  body.order_status ??\n  body.nextStatus ??\n  body.next_status;\n\nif (!orderId || !rawStatus) {\n  throw new Error(\"Faltan orderId/id o status en el body del webhook\");\n}\n\nconst isUuid = (value) =>\n  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(\n    String(value || \"\")\n  );\n\nif (!isUuid(orderId)) {\n  throw new Error(`orderId no es UUID válido: ${orderId}`);\n}\n\nconst normalizedStatus = String(rawStatus).trim().toLowerCase();\n\nconst statusMap = {\n  borrador: \"draft\",\n  por_confirmar: \"pending_confirmation\",\n  confirmado: \"confirmed\",\n  pendiente_pago: \"pending_payment\",\n  pagado_por_confirmar: \"paid_pending_confirmation\",\n  preparacion: \"in_kitchen\",\n  listo: \"dispatched\",\n  entregado: \"delivered\",\n  cancelado: \"cancelled\",\n\n  draft: \"draft\",\n  pending_confirmation: \"pending_confirmation\",\n  confirmed: \"confirmed\",\n  pending_payment: \"pending_payment\",\n  paid_pending_confirmation: \"paid_pending_confirmation\",\n  in_kitchen: \"in_kitchen\",\n  dispatched: \"dispatched\",\n  delivered: \"delivered\",\n  cancelled: \"cancelled\",\n};\n\nconst dbStatus = statusMap[normalizedStatus];\n\nif (!dbStatus) {\n  throw new Error(`Estado no soportado: ${rawStatus}`);\n}\n\nreturn [\n  {\n    json: {\n      orderId: String(orderId),\n      receivedStatus: rawStatus,\n      normalizedStatus,\n      dbStatus,\n    },\n  },\n];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -262,7 +326,10 @@
       ],
       "id": "cf6740d6-56d0-4aef-a959-ed140bda38a4",
       "name": "DashboardSummary - Webhook",
-      "webhookId": "a651be6f-86ed-4742-8144-425490601e3f"
+      "webhookId": "a651be6f-86ed-4742-8144-425490601e3f",
+      "options": {
+        "allowedOrigins": "*"
+      }
     },
     {
       "parameters": {
@@ -297,6 +364,545 @@
       ],
       "id": "f445fbe7-d68b-4df7-901e-5f1082270599",
       "name": "Respond to Webhook4"
+    },
+    {
+      "parameters": {
+        "path": "orders/receipt-link",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -80,
+        832
+      ],
+      "id": "8d46a802-01e2-45e3-bbc1-6a02f26fa114",
+      "name": "Webhook",
+      "webhookId": "d7dc6313-9132-4211-b471-636c80b7941b"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "065d4966-ea17-49de-9131-558dff9766da",
+              "leftValue": "={{ !!$json.id && !!$json.storage_bucket && !!$json.storage_path }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        336,
+        832
+      ],
+      "id": "76749d21-d10e-470f-bc78-e1f19ac9df4d",
+      "name": "If recepit found"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://elastica-supabase.3haody.easypanel.host/storage/v1/object/sign/{{$json.storage_bucket}}/{{$json.storage_path}}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\n  \"expiresIn\": 300\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        544,
+        736
+      ],
+      "id": "22048b62-5e68-43bd-a0dc-52ec4fc44a21",
+      "name": "Create Signed URL",
+      "credentials": {
+        "supabaseApi": {
+          "id": "XTqVqLTj9ZKj2fiy",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const signed = $input.first().json || {};\nconst receipt = $('Get Latest Payment Receipt').first().json || {};\n\nconst rawSignedUrl =\n  signed.signedURL ??\n  signed.signedUrl ??\n  signed.url ??\n  null;\n\nconst baseUrl = 'https://elastica-supabase.3haody.easypanel.host/storage/v1';\n\nlet finalUrl = null;\n\nif (rawSignedUrl) {\n  if (String(rawSignedUrl).startsWith('http://') || String(rawSignedUrl).startsWith('https://')) {\n    finalUrl = rawSignedUrl;\n  } else {\n    finalUrl = `${baseUrl}${rawSignedUrl.startsWith('/') ? '' : '/'}${rawSignedUrl}`;\n  }\n}\n\nreturn [\n  {\n    json: {\n      ok: Boolean(finalUrl),\n      url: finalUrl,\n      paymentReceiptId: receipt.id ?? null,\n      orderId: receipt.order_id ?? null,\n      fileName: receipt.storage_file_name ?? null\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        752,
+        736
+      ],
+      "id": "76abc7dc-a8ab-4130-85b3-ec5fa99c7760",
+      "name": "Build Receipt Link Response"
+    },
+    {
+      "parameters": {
+        "options": {
+          "responseCode": 200,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "http://localhost:5173"
+              },
+              {
+                "name": "Access-Control-Allow-Methods",
+                "value": "GET, OPTIONS"
+              },
+              {
+                "name": "Access-Control-Allow-Headers",
+                "value": "Content-Type, Accept"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        960,
+        736
+      ],
+      "id": "1860c833-5826-4e14-9b57-408def9476bc",
+      "name": "Respond Success"
+    },
+    {
+      "parameters": {
+        "jsCode": "return [\n  {\n    json: {\n      ok: false,\n      url: null,\n      message: 'No se encontró un comprobante disponible para este pedido'\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        544,
+        928
+      ],
+      "id": "9631bef9-1f7f-4040-a468-361ebd2662ba",
+      "name": "Build Not Found Response"
+    },
+    {
+      "parameters": {
+        "options": {
+          "responseCode": 404,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "http://localhost:5173"
+              },
+              {
+                "name": "Access-Control-Allow-Methods",
+                "value": "GET, OPTIONS"
+              },
+              {
+                "name": "Access-Control-Allow-Headers",
+                "value": "Content-Type, Accept"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        752,
+        928
+      ],
+      "id": "14e9a0c3-57ef-4cc9-ab3a-1288f6a15619",
+      "name": "Respond Not Found"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select\n  pr.id,\n  pr.order_id,\n  pr.storage_bucket,\n  pr.storage_path,\n  pr.storage_file_name,\n  pr.validation_decision,\n  pr.manual_review_status,\n  pr.created_at\nfrom guaw.payment_receipts pr\nwhere pr.order_id = '{{ $json.query.orderId }}'::uuid\n  and pr.storage_bucket is not null\n  and pr.storage_path is not null\norder by pr.created_at desc\nlimit 1;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        128,
+        832
+      ],
+      "id": "6eb4c982-8ad2-4b1a-b25d-08871feb56fb",
+      "name": "Get Latest Payment Receipt",
+      "credentials": {
+        "postgres": {
+          "id": "GSsEb41ZiGr8tdb3",
+          "name": "Supabase Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "/orders/confirm-payment-review",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -128,
+        1136
+      ],
+      "id": "8a2fd6f3-b3bb-4789-8803-1d05a9317e02",
+      "name": "Webhook1",
+      "webhookId": "10b291fc-b01e-49ab-9c93-d5883f60e03f"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "/orders/reject-payment-review",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -128,
+        1504
+      ],
+      "id": "1f2a620e-4edb-419e-aa53-c59f9633c2fd",
+      "name": "Webhook2",
+      "webhookId": "57da044d-0fb1-428e-b658-9886ea8a418c"
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $input.first().json || {};\nconst body =\n  raw.body && typeof raw.body === \"object\" && raw.body !== null\n    ? raw.body\n    : raw;\n\nconst orderId =\n  body.orderId ??\n  body.order_id ??\n  raw.orderId ??\n  raw.order_id ??\n  null;\n\nconst paymentReceiptId =\n  body.paymentReceiptId ??\n  body.payment_receipt_id ??\n  raw.paymentReceiptId ??\n  raw.payment_receipt_id ??\n  null;\n\nif (!orderId || !paymentReceiptId) {\n  return [\n    {\n      json: {\n        ok: false,\n        error: true,\n        message: \"orderId y paymentReceiptId son obligatorios\",\n        debug: {\n          raw,\n          body,\n        },\n      },\n    },\n  ];\n}\n\nreturn [\n  {\n    json: {\n      ok: true,\n      orderId,\n      paymentReceiptId,\n    },\n  },\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        80,
+        1136
+      ],
+      "id": "46cd26ed-50a5-449b-b204-608475ccd5de",
+      "name": "Validate Input"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "72ec0309-3959-49e4-a3dc-a03bfb3efca7",
+              "leftValue": "={{ $json.ok === true }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        288,
+        1136
+      ],
+      "id": "24ed9a46-3dc3-436b-88a4-c89f0b41ade8",
+      "name": "If Input Valid"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "update guaw.payment_receipts\nset\n  manual_review_status = 'approved',\n  validation_decision = 'approved',\n  reviewed_at = now(),\n  updated_at = now()\nwhere id = '{{ $json.paymentReceiptId }}'::uuid\nreturning\n  id,\n  order_id,\n  manual_review_status,\n  validation_decision,\n  reviewed_at;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        544,
+        1120
+      ],
+      "id": "c302b02c-c7b3-410d-98bc-e1dd4257fcac",
+      "name": "Update Payment Receipt Approved",
+      "credentials": {
+        "postgres": {
+          "id": "GSsEb41ZiGr8tdb3",
+          "name": "Supabase Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "update guaw.orders\nset\n  order_status = 'confirmed',\n  payment_status = 'paid',\n  payment_reviewed_at = now(),\n  payment_review_notes = 'Pago confirmado manualmente desde dashboard',\n  updated_at = now()\nwhere id = '{{ $(\"Validate Input\").first().json.orderId }}'::uuid\nreturning\n  id,\n  order_status,\n  payment_status,\n  payment_reviewed_at,\n  updated_at;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        752,
+        1120
+      ],
+      "id": "1773959b-3af9-4d53-9b7d-c72ecdff5e34",
+      "name": "Update Order Confirmed",
+      "credentials": {
+        "postgres": {
+          "id": "GSsEb41ZiGr8tdb3",
+          "name": "Supabase Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\n  \"ok\": true,\n  \"message\": \"Pago confirmado correctamente\",\n  \"orderId\": \"={{ $('Validate Input').first().json.orderId }}\",\n  \"paymentReceiptId\": \"={{ $('Validate Input').first().json.paymentReceiptId }}\",\n  \"orderStatus\": \"={{ $json.order_status }}\"\n}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "http://localhost:5173"
+              },
+              {
+                "name": "Access-Control-Allow-Methods",
+                "value": "POST, OPTIONS"
+              },
+              {
+                "name": "Access-Control-Allow-Headers",
+                "value": "Content-Type, Accept"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        960,
+        1120
+      ],
+      "id": "619b8990-2b25-44da-99e7-ae1ba8ba7e21",
+      "name": "Respond to Webhook5"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\n  \"ok\": false,\n  \"message\": \"={{ $json.message || 'Solicitud inválida' }}\"\n}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "http://localhost:5173"
+              },
+              {
+                "name": "Access-Control-Allow-Methods",
+                "value": "POST, OPTIONS"
+              },
+              {
+                "name": "Access-Control-Allow-Headers",
+                "value": "Content-Type, Accept"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        960,
+        1296
+      ],
+      "id": "dce6dfca-e79d-43b5-9089-3499952ab0c4",
+      "name": "Respond to Webhook6"
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $input.first().json || {};\nconst body =\n  raw.body && typeof raw.body === \"object\" && raw.body !== null\n    ? raw.body\n    : raw;\n\nconst orderId =\n  body.orderId ??\n  body.order_id ??\n  raw.orderId ??\n  raw.order_id ??\n  null;\n\nconst paymentReceiptId =\n  body.paymentReceiptId ??\n  body.payment_receipt_id ??\n  raw.paymentReceiptId ??\n  raw.payment_receipt_id ??\n  null;\n\nif (!orderId || !paymentReceiptId) {\n  return [\n    {\n      json: {\n        ok: false,\n        error: true,\n        message: \"orderId y paymentReceiptId son obligatorios\",\n        debug: {\n          raw,\n          body,\n        },\n      },\n    },\n  ];\n}\n\nreturn [\n  {\n    json: {\n      ok: true,\n      orderId,\n      paymentReceiptId,\n    },\n  },\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        80,
+        1504
+      ],
+      "id": "c1f9bee6-8bcd-47f8-945b-adbfe094ad4e",
+      "name": "Validate Input1"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "72ec0309-3959-49e4-a3dc-a03bfb3efca7",
+              "leftValue": "={{ $json.ok === true }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        272,
+        1504
+      ],
+      "id": "eca357c8-1c84-4903-a8d0-4095866db692",
+      "name": "If Input Valid1"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\n  \"ok\": true,\n  \"message\": \"Pago rechazado correctamente\",\n  \"orderId\": \"={{ $('Validate Input').first().json.orderId }}\",\n  \"paymentReceiptId\": \"={{ $('Validate Input').first().json.paymentReceiptId }}\",\n  \"orderStatus\": \"={{ $json.order_status }}\"\n}",
+        "options": {
+          "responseCode": 200,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "http://localhost:5173"
+              },
+              {
+                "name": "Access-Control-Allow-Methods",
+                "value": "POST, OPTIONS"
+              },
+              {
+                "name": "Access-Control-Allow-Headers",
+                "value": "Content-Type, Accept"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        944,
+        1488
+      ],
+      "id": "b92ff40b-5a41-4197-8f40-5fd22961658b",
+      "name": "Respond to Webhook7"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\n  \"ok\": false,\n  \"message\": \"={{ $json.message || 'Solicitud inválida' }}\"\n}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "http://localhost:5173"
+              },
+              {
+                "name": "Access-Control-Allow-Methods",
+                "value": "POST, OPTIONS"
+              },
+              {
+                "name": "Access-Control-Allow-Headers",
+                "value": "Content-Type, Accept"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        944,
+        1664
+      ],
+      "id": "8e9dd535-8b71-4c52-af32-7d87eb8a39e8",
+      "name": "Respond to Webhook8"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "update guaw.payment_receipts\nset\n  manual_review_status = 'rejected',\n  validation_decision = 'rejected_manual',\n  reviewed_at = now(),\n  updated_at = now()\nwhere id = '{{ $json.paymentReceiptId }}'::uuid\nreturning\n  id,\n  order_id,\n  manual_review_status,\n  validation_decision,\n  reviewed_at;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        528,
+        1488
+      ],
+      "id": "d2e96a8c-43b3-489f-90aa-5b4b1cf959fd",
+      "name": "Update Payment Receipt Rejected",
+      "credentials": {
+        "postgres": {
+          "id": "GSsEb41ZiGr8tdb3",
+          "name": "Supabase Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "update guaw.orders\nset\n  order_status = 'pending_payment',\n  payment_status = 'pending',\n  payment_reviewed_at = now(),\n  payment_review_notes = 'Pago rechazado manualmente desde dashboard',\n  updated_at = now()\nwhere id = '{{ $(\"Validate Input1\").first().json.orderId }}'::uuid\nreturning\n  id,\n  order_status,\n  payment_status,\n  payment_reviewed_at,\n  updated_at;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        736,
+        1488
+      ],
+      "id": "299675d5-52fa-43d2-b694-b33a34d94bef",
+      "name": "Update Order Pending Payment",
+      "credentials": {
+        "postgres": {
+          "id": "GSsEb41ZiGr8tdb3",
+          "name": "Supabase Postgres account"
+        }
+      }
     }
   ],
   "pinData": {
@@ -345,37 +951,156 @@
         "json": {
           "headers": {
             "host": "elastica-n8n.3haody.easypanel.host",
+            "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36",
+            "content-length": "129",
+            "accept": "*/*",
+            "accept-encoding": "gzip, deflate, br, zstd",
+            "accept-language": "es-419,es;q=0.9",
+            "content-type": "application/json",
+            "origin": "http://localhost:5173",
+            "priority": "u=1, i",
+            "referer": "http://localhost:5173/",
+            "sec-ch-ua": "\"Chromium\";v=\"146\", \"Not-A.Brand\";v=\"24\", \"Google Chrome\";v=\"146\"",
+            "sec-ch-ua-mobile": "?0",
+            "sec-ch-ua-platform": "\"Windows\"",
+            "sec-fetch-dest": "empty",
+            "sec-fetch-mode": "cors",
+            "sec-fetch-site": "cross-site",
+            "x-forwarded-for": "190.234.175.11",
+            "x-forwarded-host": "elastica-n8n.3haody.easypanel.host",
+            "x-forwarded-port": "443",
+            "x-forwarded-proto": "https",
+            "x-forwarded-server": "5e73bac90011",
+            "x-real-ip": "190.234.175.11"
+          },
+          "params": {},
+          "query": {},
+          "body": {
+            "orderId": "1051",
+            "id": "1051",
+            "status": "confirmed",
+            "order_status": "confirmed",
+            "nextStatus": "confirmed",
+            "next_status": "confirmed"
+          },
+          "webhookUrl": "https://elastica-n8n.3haody.easypanel.host/webhook/orders/update-status",
+          "executionMode": "production"
+        }
+      }
+    ],
+    "Webhook": [
+      {
+        "json": {
+          "headers": {
+            "host": "elastica-n8n.3haody.easypanel.host",
+            "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36",
+            "accept": "*/*",
+            "accept-encoding": "gzip, deflate, br, zstd",
+            "accept-language": "es-419,es;q=0.9",
+            "content-type": "application/json",
+            "if-none-match": "W/\"358-4vRhHtDkBNe98tILLtr6VcuLg04\"",
+            "origin": "http://localhost:5173",
+            "priority": "u=1, i",
+            "referer": "http://localhost:5173/",
+            "sec-ch-ua": "\"Chromium\";v=\"146\", \"Not-A.Brand\";v=\"24\", \"Google Chrome\";v=\"146\"",
+            "sec-ch-ua-mobile": "?0",
+            "sec-ch-ua-platform": "\"Windows\"",
+            "sec-fetch-dest": "empty",
+            "sec-fetch-mode": "cors",
+            "sec-fetch-site": "cross-site",
+            "x-forwarded-for": "190.234.175.11",
+            "x-forwarded-host": "elastica-n8n.3haody.easypanel.host",
+            "x-forwarded-port": "443",
+            "x-forwarded-proto": "https",
+            "x-forwarded-server": "5e73bac90011",
+            "x-real-ip": "190.234.175.11"
+          },
+          "params": {},
+          "query": {
+            "orderId": "d68f8f9d-111b-4d7d-8a06-8d98a36a4887"
+          },
+          "body": {},
+          "webhookUrl": "https://elastica-n8n.3haody.easypanel.host/webhook/orders/receipt-link",
+          "executionMode": "production"
+        }
+      }
+    ],
+    "Webhook1": [
+      {
+        "json": {
+          "headers": {
+            "host": "elastica-n8n.3haody.easypanel.host",
             "user-agent": "Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Mobile Safari/537.36",
-            "content-length": "73",
+            "content-length": "108",
             "accept": "*/*",
             "accept-encoding": "gzip, deflate, br, zstd",
             "accept-language": "es-419,es;q=0.9",
             "cache-control": "no-cache",
             "content-type": "application/json",
-            "origin": "http://localhost:5174",
+            "origin": "http://localhost:5173",
             "pragma": "no-cache",
             "priority": "u=1, i",
-            "referer": "http://localhost:5174/",
+            "referer": "http://localhost:5173/",
             "sec-ch-ua": "\"Chromium\";v=\"146\", \"Not-A.Brand\";v=\"24\", \"Google Chrome\";v=\"146\"",
             "sec-ch-ua-mobile": "?1",
             "sec-ch-ua-platform": "\"Android\"",
             "sec-fetch-dest": "empty",
             "sec-fetch-mode": "cors",
             "sec-fetch-site": "cross-site",
-            "x-forwarded-for": "181.65.25.87",
+            "x-forwarded-for": "190.234.175.11",
             "x-forwarded-host": "elastica-n8n.3haody.easypanel.host",
             "x-forwarded-port": "443",
             "x-forwarded-proto": "https",
-            "x-forwarded-server": "ab5a0db0176e",
-            "x-real-ip": "181.65.25.87"
+            "x-forwarded-server": "5e73bac90011",
+            "x-real-ip": "190.234.175.11"
           },
           "params": {},
           "query": {},
           "body": {
-            "orderId": "3a2e507d-9cea-4030-bf1b-abad9d3e4c82",
-            "status": "preparacion"
+            "orderId": "d68f8f9d-111b-4d7d-8a06-8d98a36a4887",
+            "paymentReceiptId": "5fc613de-dd7d-44e9-aa5c-35a9f04f29d8"
           },
-          "webhookUrl": "https://elastica-n8n.3haody.easypanel.host/webhook/orders/update-status",
+          "webhookUrl": "https://elastica-n8n.3haody.easypanel.host/webhook/orders/confirm-payment-review",
+          "executionMode": "production"
+        }
+      }
+    ],
+    "Webhook2": [
+      {
+        "json": {
+          "headers": {
+            "host": "elastica-n8n.3haody.easypanel.host",
+            "user-agent": "Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Mobile Safari/537.36",
+            "content-length": "108",
+            "accept": "*/*",
+            "accept-encoding": "gzip, deflate, br, zstd",
+            "accept-language": "es-419,es;q=0.9",
+            "cache-control": "no-cache",
+            "content-type": "application/json",
+            "origin": "http://localhost:5173",
+            "pragma": "no-cache",
+            "priority": "u=1, i",
+            "referer": "http://localhost:5173/",
+            "sec-ch-ua": "\"Chromium\";v=\"146\", \"Not-A.Brand\";v=\"24\", \"Google Chrome\";v=\"146\"",
+            "sec-ch-ua-mobile": "?1",
+            "sec-ch-ua-platform": "\"Android\"",
+            "sec-fetch-dest": "empty",
+            "sec-fetch-mode": "cors",
+            "sec-fetch-site": "cross-site",
+            "x-forwarded-for": "190.234.175.11",
+            "x-forwarded-host": "elastica-n8n.3haody.easypanel.host",
+            "x-forwarded-port": "443",
+            "x-forwarded-proto": "https",
+            "x-forwarded-server": "5e73bac90011",
+            "x-real-ip": "190.234.175.11"
+          },
+          "params": {},
+          "query": {},
+          "body": {
+            "orderId": "d68f8f9d-111b-4d7d-8a06-8d98a36a4887",
+            "paymentReceiptId": "5fc613de-dd7d-44e9-aa5c-35a9f04f29d8"
+          },
+          "webhookUrl": "https://elastica-n8n.3haody.easypanel.host/webhook/orders/reject-payment-review",
           "executionMode": "production"
         }
       }
@@ -390,22 +1115,22 @@
             "accept-encoding": "gzip, deflate, br, zstd",
             "accept-language": "es-419,es;q=0.9",
             "content-type": "application/json",
-            "if-none-match": "W/\"2b7-bhuKVejWOQHArUOmz9kCNzJv5bQ\"",
-            "origin": "http://localhost:5174",
+            "if-none-match": "W/\"9d3-YEsjuH5JpcmbutFANV7Tr2+9qZk\"",
+            "origin": "http://localhost:5173",
             "priority": "u=1, i",
-            "referer": "http://localhost:5174/",
+            "referer": "http://localhost:5173/",
             "sec-ch-ua": "\"Chromium\";v=\"146\", \"Not-A.Brand\";v=\"24\", \"Google Chrome\";v=\"146\"",
             "sec-ch-ua-mobile": "?0",
             "sec-ch-ua-platform": "\"Windows\"",
             "sec-fetch-dest": "empty",
             "sec-fetch-mode": "cors",
             "sec-fetch-site": "cross-site",
-            "x-forwarded-for": "181.65.25.87",
+            "x-forwarded-for": "190.234.175.11",
             "x-forwarded-host": "elastica-n8n.3haody.easypanel.host",
             "x-forwarded-port": "443",
             "x-forwarded-proto": "https",
-            "x-forwarded-server": "ab5a0db0176e",
-            "x-real-ip": "181.65.25.87"
+            "x-forwarded-server": "5e73bac90011",
+            "x-real-ip": "190.234.175.11"
           },
           "params": {},
           "query": {},
@@ -417,6 +1142,28 @@
     ]
   },
   "connections": {
+    "GetOrderDetail - Webhook": {
+      "main": [
+        [
+          {
+            "node": "QueryOrderDetail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "QueryOrderDetail": {
+      "main": [
+        [
+          {
+            "node": "Respond Order Detail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
     "Execute a SQL query": {
       "main": [
         [
@@ -426,11 +1173,6 @@
             "index": 0
           }
         ]
-      ]
-    },
-    "Code in JavaScript": {
-      "main": [
-        []
       ]
     },
     "Execute a SQL query1": {
@@ -553,13 +1295,210 @@
           }
         ]
       ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Get Latest Payment Receipt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If recepit found": {
+      "main": [
+        [
+          {
+            "node": "Create Signed URL",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Not Found Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Signed URL": {
+      "main": [
+        [
+          {
+            "node": "Build Receipt Link Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Receipt Link Response": {
+      "main": [
+        [
+          {
+            "node": "Respond Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Not Found Response": {
+      "main": [
+        [
+          {
+            "node": "Respond Not Found",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Latest Payment Receipt": {
+      "main": [
+        [
+          {
+            "node": "If recepit found",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook1": {
+      "main": [
+        [
+          {
+            "node": "Validate Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Input": {
+      "main": [
+        [
+          {
+            "node": "If Input Valid",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If Input Valid": {
+      "main": [
+        [
+          {
+            "node": "Update Payment Receipt Approved",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond to Webhook6",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Payment Receipt Approved": {
+      "main": [
+        [
+          {
+            "node": "Update Order Confirmed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Order Confirmed": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook5",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook2": {
+      "main": [
+        [
+          {
+            "node": "Validate Input1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If Input Valid1": {
+      "main": [
+        [
+          {
+            "node": "Update Payment Receipt Rejected",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond to Webhook8",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Input1": {
+      "main": [
+        [
+          {
+            "node": "If Input Valid1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Payment Receipt Rejected": {
+      "main": [
+        [
+          {
+            "node": "Update Order Pending Payment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Order Pending Payment": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook7",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "active": true,
   "settings": {
     "executionOrder": "v1"
   },
-  "versionId": "61dedcb5-5521-4a84-a88f-d2edde0670b7",
+  "versionId": "80780458-3a9e-4587-85f1-f7dadad4ee68",
   "meta": {
     "templateCredsSetupCompleted": true,
     "instanceId": "de8396c057c90157b11f4f4209f784d788086afd909604db9bce09a14132efbd"

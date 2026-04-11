@@ -5,6 +5,7 @@ import KitchenBoardPage from "../pages/KitchenBoardPage";
 import EventLeadsPage from "../pages/EventLeadsPage";
 import OrdersPage from "../pages/OrdersPage";
 import OrderDetailPage from "../pages/OrderDetailPage";
+import DeliveryZonesPage from "../pages/DeliveryZonesPage";
 
 export const router = createBrowserRouter([
   {
@@ -16,6 +17,7 @@ export const router = createBrowserRouter([
       { path: "orders", element: <OrdersPage /> },
       { path: "orders/:id", element: <OrderDetailPage /> },
       { path: "events", element: <EventLeadsPage /> },
+      { path: "delivery-zones", element: <DeliveryZonesPage /> },
     ],
   },
 ]);

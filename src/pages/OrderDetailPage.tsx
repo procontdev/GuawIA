@@ -8,6 +8,7 @@ import {
   Package2,
   Phone,
   RefreshCw,
+  ShieldCheck,
   Store,
   User,
 } from "lucide-react";
@@ -499,6 +500,89 @@ export default function OrderDetailPage() {
                       {order.district || "Sin distrito"}
                       {order.reference ? ` · ${order.reference}` : ""}
                     </p>
+                  </div>
+                )}
+
+                {/* Auditoría de Delivery (Etapa 2) */}
+                {order.coverageStatus && order.coverageStatus !== "unknown" && (
+                  <div className="space-y-3 rounded-2xl border border-slate-200 p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-slate-500">
+                        <ShieldCheck className="h-4 w-4" />
+                        <span className="text-sm">Auditoría de Delivery</span>
+                      </div>
+                      <Badge
+                        variant="secondary"
+                        className={
+                          order.coverageStatus === "covered"
+                            ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                            : order.coverageStatus === "insufficient_data"
+                            ? "border-amber-200 bg-amber-50 text-amber-700"
+                            : "border-rose-200 bg-rose-50 text-rose-700"
+                        }
+                      >
+                        {order.coverageStatus === "covered"
+                          ? "Cubierto"
+                          : order.coverageStatus === "insufficient_data"
+                          ? "Info. Insuficiente"
+                          : "Sin Cobertura"}
+                      </Badge>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-xs uppercase tracking-wider text-slate-500">
+                          Confianza
+                        </p>
+                        <div className="mt-1 flex items-center gap-2">
+                          <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-100">
+                            <div
+                              className={`h-full ${
+                                (order.deliveryConfidence ?? 0) >= 70
+                                  ? "bg-emerald-500"
+                                  : "bg-amber-500"
+                              }`}
+                              style={{
+                                width: `${order.deliveryConfidence ?? 0}%`,
+                              }}
+                            />
+                          </div>
+                          <span className="text-sm font-semibold">
+                            {order.deliveryConfidence ?? 0}%
+                          </span>
+                        </div>
+                      </div>
+                      <div>
+                        <p className="text-xs uppercase tracking-wider text-slate-500">
+                          Método
+                        </p>
+                        <p className="mt-1 text-sm font-medium">
+                          {order.deliveryResolutionMethod || "N/A"}
+                        </p>
+                      </div>
+                    </div>
+
+                    {order.deliveryResolutionDetail?.matched_keywords?.length >
+                      0 && (
+                      <div>
+                        <p className="text-xs uppercase tracking-wider text-slate-500">
+                          Keywords halladas
+                        </p>
+                        <div className="mt-2 flex flex-wrap gap-1">
+                          {order.deliveryResolutionDetail.matched_keywords.map(
+                            (kw: string, i: number) => (
+                              <Badge
+                                key={i}
+                                variant="outline"
+                                className="bg-slate-50 px-2 py-0 text-[10px]"
+                              >
+                                {kw}
+                              </Badge>
+                            )
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
 
