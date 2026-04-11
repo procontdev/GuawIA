@@ -1,28 +1,56 @@
 import { Database, Sparkles } from "lucide-react";
 import { Badge } from "@/ui/badge";
-import { getEnvironmentDescription, getEnvironmentLabel, USE_MOCK_API } from "@/services/env";
+import { getEnvironmentDescription, getEnvironmentLabel } from "@/services/env";
+import { USE_MOCK_API } from "@/services/api";
 
 type AppHeaderProps = {
   pathname: string;
 };
 
-const pageMeta: Record<string, { title: string; subtitle: string }> = {
-  "/": {
+function getPageMeta(pathname: string) {
+  if (pathname === "/") {
+    return {
+      title: "Dashboard General",
+      subtitle: "Resumen ejecutivo de la operación delivery y leads de eventos",
+    };
+  }
+
+  if (pathname === "/kitchen") {
+    return {
+      title: "Vista Cocina / Comanda",
+      subtitle: "Seguimiento de pedidos delivery por estado operativo",
+    };
+  }
+
+  if (pathname === "/orders") {
+    return {
+      title: "Pedidos",
+      subtitle: "Bandeja administrativa de pedidos con acceso a detalle",
+    };
+  }
+
+  if (pathname.startsWith("/orders/")) {
+    return {
+      title: "Detalle de Pedido",
+      subtitle: "Consulta del pedido y actualización de estado",
+    };
+  }
+
+  if (pathname === "/events") {
+    return {
+      title: "Leads de Eventos",
+      subtitle: "Registro comercial y seguimiento de oportunidades",
+    };
+  }
+
+  return {
     title: "Dashboard General",
     subtitle: "Resumen ejecutivo de la operación delivery y leads de eventos",
-  },
-  "/kitchen": {
-    title: "Vista Cocina / Comanda",
-    subtitle: "Seguimiento de pedidos delivery por estado operativo",
-  },
-  "/events": {
-    title: "Leads de Eventos",
-    subtitle: "Registro comercial y seguimiento de oportunidades",
-  },
-};
+  };
+}
 
 export default function AppHeader({ pathname }: AppHeaderProps) {
-  const meta = pageMeta[pathname] ?? pageMeta["/"];
+  const meta = getPageMeta(pathname);
   const label = getEnvironmentLabel();
   const description = getEnvironmentDescription();
 

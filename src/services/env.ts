@@ -1,11 +1,14 @@
-export const USE_MOCK_API = String(import.meta.env.VITE_USE_MOCK_API) === "true";
+import { USE_MOCK_API } from "@/services/api";
 
 export function getEnvironmentLabel() {
-  return USE_MOCK_API ? "Modo demo" : "Datos reales";
+  if (USE_MOCK_API) return "Modo demo";
+  return "Datos reales";
 }
 
 export function getEnvironmentDescription() {
-  return USE_MOCK_API
-    ? "La app está usando datos simulados."
-    : "La app está conectada a n8n y Postgres.";
+  if (USE_MOCK_API) {
+    return "La aplicación usa datos mock para demo visual.";
+  }
+
+  return "La aplicación está conectada a datos reales.";
 }

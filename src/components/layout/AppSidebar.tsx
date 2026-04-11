@@ -1,6 +1,13 @@
 import { NavLink } from "react-router-dom";
-import { LayoutDashboard, ClipboardList, CalendarRange } from "lucide-react";
+import {
+  LayoutDashboard,
+  ClipboardList,
+  CalendarRange,
+  Package2,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
+import { getEnvironmentLabel } from "@/services/env";
+import { USE_MOCK_API } from "@/services/api";
 
 const items = [
   {
@@ -10,8 +17,13 @@ const items = [
   },
   {
     to: "/kitchen",
-    label: "Pedidos Delivery",
+    label: "Pedidos Cocina",
     icon: ClipboardList,
+  },
+  {
+    to: "/orders",
+    label: "Pedidos",
+    icon: Package2,
   },
   {
     to: "/events",
@@ -21,6 +33,8 @@ const items = [
 ];
 
 export default function AppSidebar() {
+  const environmentLabel = getEnvironmentLabel();
+
   return (
     <aside className="border-r border-slate-200 bg-white">
       <div className="flex h-full flex-col">
@@ -55,7 +69,7 @@ export default function AppSidebar() {
                 }
               >
                 <Icon className="h-4 w-4" />
-                {item.label}
+                <span>{item.label}</span>
               </NavLink>
             );
           })}
@@ -63,9 +77,13 @@ export default function AppSidebar() {
 
         <div className="border-t border-slate-200 p-4">
           <div className="rounded-2xl bg-slate-100 p-4">
-            <p className="text-sm font-medium text-slate-900">Modo demo</p>
+            <p className="text-sm font-medium text-slate-900">
+              {environmentLabel}
+            </p>
             <p className="mt-1 text-xs text-slate-500">
-              Base visual preparada para conectar luego con n8n / Supabase.
+              {USE_MOCK_API
+                ? "La aplicación está usando datos de demostración."
+                : "La aplicación está conectada a datos reales."}
             </p>
           </div>
         </div>

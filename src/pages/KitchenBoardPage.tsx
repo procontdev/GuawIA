@@ -35,16 +35,18 @@ const REFRESH_INTERVAL_MS = 8000;
 const HIGHLIGHT_DURATION_MS = 12000;
 const ALERT_WEBHOOK_URL = import.meta.env.VITE_ALERT_WEBHOOK_URL || "";
 
+type KitchenStatus = "confirmado" | "preparacion" | "listo" | "entregado";
+
 const STATUS_META: Record<
-  OrderStatus,
+  KitchenStatus,
   {
     label: string;
     border: string;
-    icon: any;
+    icon: React.ComponentType<{ className?: string }>;
   }
 > = {
-  nuevo: {
-    label: "Nuevo",
+  confirmado: {
+    label: "Confirmado",
     border: "border-slate-200",
     icon: Package2,
   },
@@ -65,14 +67,27 @@ const STATUS_META: Record<
   },
 };
 
-const STATUS_OPTIONS: OrderStatus[] = [
-  "nuevo",
+const STATUS_OPTIONS: KitchenStatus[] = [
+  "confirmado",
   "preparacion",
   "listo",
   "entregado",
 ];
 
-const ALERTABLE_STATUSES: OrderStatus[] = ["nuevo", "preparacion", "listo"];
+const ALERTABLE_STATUSES: KitchenStatus[] = [
+  "confirmado",
+  "preparacion",
+  "listo",
+];
+
+function isKitchenStatus(status: OrderStatus): status is KitchenStatus {
+  return (
+    status === "confirmado" ||
+    status === "preparacion" ||
+    status === "listo" ||
+    status === "entregado"
+  );
+}
 
 function minutesSince(dateIso: string) {
   return Math.max(
@@ -98,7 +113,7 @@ function relativeAgeLabel(dateIso: string) {
   return `Hace ${hours} h`;
 }
 
-function StatusPill({ status }: { status: OrderStatus }) {
+function StatusPill({ status }: { status: KitchenStatus }) {
   const meta = STATUS_META[status];
   const Icon = meta.icon;
 
@@ -119,7 +134,7 @@ function KPI({
   title: string;
   value: string | number;
   hint: string;
-  icon: any;
+  icon: React.ComponentType<{ className?: string }>;
 }) {
   return (
     <Card className="rounded-2xl border-slate-200 shadow-sm">
@@ -137,9 +152,9 @@ function KPI({
   );
 }
 
-function getHighlightStyles(status: OrderStatus) {
+function getHighlightStyles(status: KitchenStatus) {
   switch (status) {
-    case "nuevo":
+    case "confirmado":
       return "ring-4 ring-red-500/70 border-red-300 bg-red-50/50 animate-pulse";
     case "preparacion":
       return "ring-4 ring-amber-500/70 border-amber-300 bg-amber-50/60";
@@ -158,10 +173,10 @@ function OrderCard({
   isHighlighted = false,
   highlightedStatus,
 }: {
-  order: Order;
-  onStatusChange: (orderId: string, nextStatus: OrderStatus) => void;
+  order: Order & { status: KitchenStatus };
+  onStatusChange: (orderId: string, nextStatus: KitchenStatus) => void;
   isHighlighted?: boolean;
-  highlightedStatus?: OrderStatus;
+  highlightedStatus?: KitchenStatus;
 }) {
   const waitingMinutes = minutesSince(order.createdAt);
   const isDelayed = waitingMinutes >= 20 && order.status !== "entregado";
@@ -347,10 +362,10 @@ function StatusColumn({
   highlightedOrders,
 }: {
   title: string;
-  status: OrderStatus;
-  orders: Order[];
-  onStatusChange: (orderId: string, nextStatus: OrderStatus) => void;
-  highlightedOrders: Record<string, OrderStatus>;
+  status: KitchenStatus;
+  orders: Array<Order & { status: KitchenStatus }>;
+  onStatusChange: (orderId: string, nextStatus: KitchenStatus) => void;
+  highlightedOrders: Partial<Record<string, KitchenStatus>>;
 }) {
   const Icon = STATUS_META[status].icon;
 
@@ -400,15 +415,15 @@ export default function KitchenBoardPage() {
   const [loading, setLoading] = useState(true);
   const [soundEnabled, setSoundEnabled] = useState(false);
   const [highlightedOrders, setHighlightedOrders] = useState<
-    Record<string, OrderStatus>
+    Partial<Record<string, KitchenStatus>>
   >({});
 
-  const previousOrdersRef = useRef<Record<string, OrderStatus>>({});
+  const previousOrdersRef = useRef<Partial<Record<string, KitchenStatus>>>({});
   const initializedRef = useRef(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const timeoutRefs = useRef<Record<string, number>>({});
 
-  const highlightOrder = useCallback((orderId: string, status: OrderStatus) => {
+  const highlightOrder = useCallback((orderId: string, status: KitchenStatus) => {
     setHighlightedOrders((prev) => ({ ...prev, [orderId]: status }));
 
     const existingTimeout = timeoutRefs.current[orderId];
@@ -427,7 +442,7 @@ export default function KitchenBoardPage() {
   }, []);
 
   const playAlertSound = useCallback(
-    async (status: OrderStatus) => {
+    async (status: KitchenStatus) => {
       if (!soundEnabled || !audioRef.current) return;
       if (!ALERTABLE_STATUSES.includes(status)) return;
 
@@ -444,7 +459,7 @@ export default function KitchenBoardPage() {
   );
 
   const notifyPhysicalAlert = useCallback(
-    async (order: Order, nextStatus: OrderStatus) => {
+    async (order: Order, nextStatus: KitchenStatus) => {
       if (!ALERT_WEBHOOK_URL) return;
       if (!ALERTABLE_STATUSES.includes(nextStatus)) return;
 
@@ -475,7 +490,7 @@ export default function KitchenBoardPage() {
   const triggerAlert = useCallback(
     async (
       order: Order,
-      nextStatus: OrderStatus,
+      nextStatus: KitchenStatus,
       source: "remote" | "local"
     ) => {
       highlightOrder(order.id, nextStatus);
@@ -532,18 +547,21 @@ export default function KitchenBoardPage() {
 
   const processIncomingOrders = useCallback(
     async (data: Order[]) => {
-      const nextStatusMap: Record<string, OrderStatus> = {};
-      data.forEach((order) => {
+      const kitchenData = data.filter((order) => isKitchenStatus(order.status));
+
+      const nextStatusMap: Partial<Record<string, KitchenStatus>> = {};
+      kitchenData.forEach((order) => {
         nextStatusMap[order.id] = order.status;
       });
 
       if (initializedRef.current) {
-        for (const order of data) {
+        for (const order of kitchenData) {
           const previousStatus = previousOrdersRef.current[order.id];
           const nextStatus = order.status;
 
           const isNewOrder = !previousStatus;
-          const hasStatusChanged = previousStatus && previousStatus !== nextStatus;
+          const hasStatusChanged =
+            previousStatus !== undefined && previousStatus !== nextStatus;
 
           if (isNewOrder) {
             await triggerAlert(order, nextStatus, "remote");
@@ -559,7 +577,7 @@ export default function KitchenBoardPage() {
       }
 
       previousOrdersRef.current = nextStatusMap;
-      setOrders(data);
+      setOrders(kitchenData);
       setLastUpdated(new Date());
     },
     [triggerAlert]
@@ -618,11 +636,27 @@ export default function KitchenBoardPage() {
   }, [orders, search, districtFilter]);
 
   const grouped = useMemo(() => {
+    const confirmado = filteredOrders.filter(
+      (o): o is Order & { status: "confirmado" } => o.status === "confirmado"
+    );
+
+    const preparacion = filteredOrders.filter(
+      (o): o is Order & { status: "preparacion" } => o.status === "preparacion"
+    );
+
+    const listo = filteredOrders.filter(
+      (o): o is Order & { status: "listo" } => o.status === "listo"
+    );
+
+    const entregado = filteredOrders.filter(
+      (o): o is Order & { status: "entregado" } => o.status === "entregado"
+    );
+
     return {
-      nuevo: filteredOrders.filter((o) => o.status === "nuevo"),
-      preparacion: filteredOrders.filter((o) => o.status === "preparacion"),
-      listo: filteredOrders.filter((o) => o.status === "listo"),
-      entregado: filteredOrders.filter((o) => o.status === "entregado"),
+      confirmado,
+      preparacion,
+      listo,
+      entregado,
     };
   }, [filteredOrders]);
 
@@ -645,7 +679,7 @@ export default function KitchenBoardPage() {
 
   const handleStatusChange = async (
     orderId: string,
-    nextStatus: OrderStatus
+    nextStatus: KitchenStatus
   ) => {
     const previous = orders;
     const order = orders.find((o) => o.id === orderId);
@@ -658,12 +692,10 @@ export default function KitchenBoardPage() {
       await updateOrderStatus(orderId, nextStatus);
       setLastUpdated(new Date());
 
-      const updatedOrder =
-        previous.find((o) => o.id === orderId) &&
-        ({
-          ...(previous.find((o) => o.id === orderId) as Order),
-          status: nextStatus,
-        } as Order);
+      const previousOrder = previous.find((o) => o.id === orderId);
+      const updatedOrder = previousOrder
+        ? ({ ...previousOrder, status: nextStatus } as Order)
+        : null;
 
       if (updatedOrder) {
         previousOrdersRef.current[orderId] = nextStatus;
@@ -703,7 +735,7 @@ export default function KitchenBoardPage() {
         <KPI
           title="Pedidos activos"
           value={kpis.active}
-          hint="Nuevos + preparación + listos"
+          hint="Confirmados + preparación + listos"
           icon={ChefHat}
         />
         <KPI
@@ -813,9 +845,9 @@ export default function KitchenBoardPage() {
         <section className="overflow-x-auto pb-4">
           <div className="flex min-w-[1320px] gap-5">
             <StatusColumn
-              title="Nuevos"
-              status="nuevo"
-              orders={grouped.nuevo}
+              title="Confirmados"
+              status="confirmado"
+              orders={grouped.confirmado}
               onStatusChange={handleStatusChange}
               highlightedOrders={highlightedOrders}
             />
@@ -845,15 +877,20 @@ export default function KitchenBoardPage() {
       ) : (
         <section className="space-y-4">
           {filteredOrders.length ? (
-            filteredOrders.map((order) => (
-              <OrderCard
-                key={order.id}
-                order={order}
-                onStatusChange={handleStatusChange}
-                isHighlighted={Boolean(highlightedOrders[order.id])}
-                highlightedStatus={highlightedOrders[order.id]}
-              />
-            ))
+            filteredOrders
+              .filter(
+                (order): order is Order & { status: KitchenStatus } =>
+                  isKitchenStatus(order.status)
+              )
+              .map((order) => (
+                <OrderCard
+                  key={order.id}
+                  order={order}
+                  onStatusChange={handleStatusChange}
+                  isHighlighted={Boolean(highlightedOrders[order.id])}
+                  highlightedStatus={highlightedOrders[order.id]}
+                />
+              ))
           ) : (
             <Card className="rounded-3xl border border-dashed border-slate-200 bg-white">
               <CardContent className="p-12 text-center text-slate-500">
