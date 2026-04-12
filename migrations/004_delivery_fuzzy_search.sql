@@ -1,6 +1,7 @@
 -- ==========================================================
 -- Integración de pg_trgm para búsqueda borrosa de distritos
--- Reparación de loop infinito por scoring de datos genéricos
+-- Corrige umbral de similarity para distritos compuestos
+-- ("Magdalena" debe matchear "Magdalena del Mar")
 -- ==========================================================
 
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
@@ -25,6 +26,7 @@ DECLARE
     v_coverage_status TEXT := 'out_of_coverage';
     v_matched_keywords TEXT[] := '{}';
     v_district_sim_score REAL;
+    v_word_sim_score REAL;
 BEGIN
     -- Normalización
     v_norm_district := lower(unaccent(coalesce(p_district, '')));
@@ -38,11 +40,18 @@ BEGIN
         v_current_score := 0;
         v_matched_keywords := '{}';
 
-        -- Match de Distrito (hasta +50) utilizando búsqueda borrosa
+        -- Match de Distrito usando similarity (exacto) y word_similarity (parcial)
+        -- word_similarity permite que "magdalena" matchee "magdalena del mar"
         v_district_sim_score := similarity(v_norm_district, lower(unaccent(v_zone.district)));
+        v_word_sim_score := word_similarity(v_norm_district, lower(unaccent(v_zone.district)));
         
-        IF v_district_sim_score > 0.6 THEN
+        -- Umbral: similarity > 0.4 OR word_similarity > 0.6
+        -- Esto captura "magdalena" vs "magdalena del mar" (word_sim ~0.75)
+        -- y también "lince" vs "lince" (similarity = 1.0)
+        IF v_district_sim_score > 0.4 OR v_word_sim_score > 0.6 THEN
             v_current_score := v_current_score + 50;
+            -- Actualizar el score de referencia al mejor de los dos
+            v_district_sim_score := GREATEST(v_district_sim_score, v_word_sim_score);
         END IF;
 
         -- Match de Keywords (+25 por cada una)
@@ -55,8 +64,7 @@ BEGIN
                 END IF;
             END LOOP;
         ELSE
-            -- Si no hay keywords predefinidos en la zona, y el cliente provee una dirección,
-            -- asumimos que el distrito entero tiene cobertura genérica (+25 puntos extra).
+            -- Si no hay keywords, cobertura genérica si hay dirección
             IF length(v_norm_combined) > 3 THEN
                 v_current_score := v_current_score + 25;
             END IF;
@@ -73,13 +81,10 @@ BEGIN
         END IF;
     END LOOP;
 
-    -- Si hubo match de distrito (50) pero no de keywords (score = 50),
-    -- y el usuario sí proveyó una dirección (lenght > 3), consideramos
-    -- que tiene sufieciente info aunque ninguna keyword coincidió.
-    -- Esto relaja las reglas exigentes previas para evitar bucles infinitos.
+    -- Si solo hay distrito (score = 50), empujar a covered genérico
+    -- cuando el usuario haya provisto también una dirección
     IF v_best_score = 50 AND length(v_norm_combined) > 3 THEN
-         -- Empujar el umbral por encima de 70 para aceptarlo
-         v_best_score := 75;
+        v_best_score := 75;
     END IF;
 
     -- Determinación de status de cobertura
@@ -105,7 +110,8 @@ BEGIN
             'input_district', p_district,
             'input_combined', p_address || ' ' || p_reference,
             'matched_keywords', v_matched_keywords,
-            'fuzzy_similarity', v_district_sim_score
+            'fuzzy_similarity', v_district_sim_score,
+            'word_similarity', v_word_sim_score
         )
     );
 END;
