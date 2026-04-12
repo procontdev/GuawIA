@@ -1593,7 +1593,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const base = $('Evaluate Draft Next Step').first().json;\nconst ctx = base.context_json ?? {};\nconst draft = ctx.order_draft ?? {};\n\nlet rawInput = $input.first().json;\nconst resolution = rawInput.resolve_delivery_zone_v2 || rawInput;\n\nlet resolvedZone = null;\nlet resolutionStatus = 'not_found';\nlet clarificationMessage = null;\n\nconst coverage = resolution.coverage_status || 'unknown';\n\nif (coverage === 'covered') {\n  resolvedZone = {\n    id: resolution.zone_id,\n    zone_name: resolution.zone_id ? 'Zona Detectada' : 'Zona Genérica',\n    delivery_fee: Number(resolution.delivery_fee || 0),\n    eta_min: resolution.eta_min,\n    eta_max: resolution.eta_max,\n    is_active: true\n  };\n  resolutionStatus = 'resolved';\n} else if (coverage === 'out_of_coverage') {\n  resolutionStatus = 'out_of_coverage';\n  clarificationMessage = 'Lo siento, no logramos validar la cobertura para esa ubicación. 😔\\n\\n¿Deseas cambiar el pedido a **Recojo en Tienda** o prefieres indicarme otro distrito?';\n} else {\n  resolutionStatus = 'ambiguous';\n  clarificationMessage = 'Para confirmar la cobertura exacta, compárteme tu dirección de entrega o una referencia clara.';\n}\n\nreturn [\n  {\n    json: {\n      ...base,\n      delivery_zone_resolution: {\n        status: resolutionStatus,\n        zone: resolvedZone,\n        clarification_message: clarificationMessage\n      }\n    }\n  }\n];"
+        "jsCode": "const base = $('Evaluate Draft Next Step').first().json;\nconst ctx = base.context_json ?? {};\nconst draft = ctx.order_draft ?? {};\n\nlet rawInput = $input.first().json;\nconst resolution = rawInput.resolve_delivery_zone_v2 || rawInput;\n\nlet resolvedZone = null;\nlet resolutionStatus = 'not_found';\nlet clarificationMessage = null;\n\nconst coverage = resolution.coverage_status || 'unknown';\n\n// Verificar si el draft ya tiene una dirección real\nconst hasAddressInDraft = !!(draft.address_text && draft.address_text.trim().length > 0)\n  || !!(draft.reference_text && draft.reference_text.trim().length > 0);\n\nif (coverage === 'covered') {\n  resolvedZone = {\n    id: resolution.zone_id,\n    zone_name: resolution.zone_id ? 'Zona Detectada' : 'Zona Genérica',\n    delivery_fee: Number(resolution.delivery_fee || 0),\n    eta_min: resolution.eta_min,\n    eta_max: resolution.eta_max,\n    is_active: true\n  };\n  resolutionStatus = 'resolved';\n} else if (coverage === 'out_of_coverage') {\n  resolutionStatus = 'out_of_coverage';\n  clarificationMessage = 'Lo siento, no logramos validar la cobertura para esa ubicación. 😔\\n\\n¿Deseas cambiar el pedido a **Recojo en Tienda** o prefieres indicarme otro distrito?';\n} else if (coverage === 'insufficient_data' && hasAddressInDraft) {\n  // Distrito correcto + dirección provista: aceptar como cobertura genérica\n  resolvedZone = {\n    id: resolution.zone_id ?? null,\n    zone_name: 'Zona Genérica',\n    delivery_fee: Number(resolution.delivery_fee || 5),\n    eta_min: resolution.eta_min ?? 30,\n    eta_max: resolution.eta_max ?? 60,\n    is_active: true\n  };\n  resolutionStatus = 'resolved';\n} else {\n  resolutionStatus = 'ambiguous';\n  clarificationMessage = 'Para confirmar la cobertura exacta, compárteme tu dirección de entrega o una referencia clara.';\n}\n\nreturn [\n  {\n    json: {\n      ...base,\n      delivery_zone_resolution: {\n        status: resolutionStatus,\n        zone: resolvedZone,\n        clarification_message: clarificationMessage\n      }\n    }\n  }\n];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -2183,49 +2183,7 @@
     },
     {
       "parameters": {
-        "url": "https://nominatim.openstreetmap.org/search",
-        "sendQuery": true,
-        "queryParameters": {
-          "parameters": [
-            {
-              "name": "q",
-              "value": "={{ $json.context_json?.order_draft?.address_text || $json.context_json?.order_draft?.reference_text ? ($json.context_json?.order_draft?.address_text || $json.context_json?.order_draft?.reference_text).concat(', ', $json.context_json?.order_draft?.district, ', Lima, Peru') : '' }}"
-            },
-            {
-              "name": "format",
-              "value": "json"
-            },
-            {
-              "name": "limit",
-              "value": "1"
-            }
-          ]
-        },
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "User-Agent",
-              "value": "Guaw-Agent-N8N/1.0 (info@procontsys.com)"
-            }
-          ]
-        },
-        "options": {
-          "ignoreResponseCode": true
-        }
-      },
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        -3500,
-        750
-      ],
-      "id": "37c41dce-6dcc-4e8d-a10c-edb3ed4859ca",
-      "name": "Geocode Address (OSM)"
-    },
-    {
-      "parameters": {
-        "jsCode": "const prev = $('If Delivery Quote Pending?').first().json;\nconst geom = $input.first().json;\n\nlet lat = null;\nlet lng = null;\n\nif (Array.isArray(geom) && geom.length > 0) {\n  lat = parseFloat(geom[0].lat);\n  lng = parseFloat(geom[0].lon);\n}\n\nconst newCtx = JSON.parse(JSON.stringify(prev.context_json || {}));\nif (!newCtx.delivery) newCtx.delivery = {};\n// Only apply coords if successfully parsed\nif (lat && lng) {\n  newCtx.delivery.lat = lat;\n  newCtx.delivery.lng = lng;\n}\n\nreturn [\n  {\n    json: {\n      ...prev,\n      context_json: newCtx\n    }\n  }\n];"
+        "jsCode": "\nconst prev = $('If Delivery Quote Pending?').first().json;\nconst ctx = prev.context_json || {};\nconst draft = ctx.order_draft || {};\n\nlet lat = null;\nlet lng = null;\n\nconst district = draft.district ? draft.district.trim() : '';\nconst address = draft.address_text ? draft.address_text.trim() : '';\nconst reference = draft.reference_text ? draft.reference_text.trim() : '';\n\n// 1. Validar que tengamos al menos una dirección o referencia, no solo el distrito\nconst hasAddress = address.length > 0 || reference.length > 0;\n\nif (hasAddress && district.length > 0) {\n  // Construir query de OSM manual\n  const queryParts = [];\n  if (address) queryParts.push(address);\n  if (reference) queryParts.push(reference);\n  queryParts.push(district);\n  queryParts.push('Lima');\n  queryParts.push('Peru');\n  \n  const q = encodeURIComponent(queryParts.join(', '));\n  const url = `https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1`;\n  \n  try {\n    // wait for internal axios/request if fetch is not available, but modern N8N uses Node fetch\n    const response = await this.helpers.httpRequest({\n        method: 'GET',\n        url: url,\n        headers: { 'User-Agent': 'Guaw-Agent-N8N/1.0 (info@procontsys.com)' },\n        json: true\n    });\n    \n    if (Array.isArray(response) && response.length > 0) {\n       lat = parseFloat(response[0].lat);\n       lng = parseFloat(response[0].lon);\n    }\n  } catch(e) {\n    // Ignore error, fallback to null\n    console.log(\"OSM Geocode Error: \" + e.message);\n  }\n}\n\nconst newCtx = JSON.parse(JSON.stringify(ctx));\nif (!newCtx.delivery) newCtx.delivery = {};\n\n// Solo aplicamos si se hallaron\nif (lat && lng) {\n  newCtx.delivery.lat = lat;\n  newCtx.delivery.lng = lng;\n} else {\n  // Explicitly nullify to ensure fallback\n  newCtx.delivery.lat = null;\n  newCtx.delivery.lng = null;\n}\n\nreturn [\n  {\n    json: {\n      ...prev,\n      context_json: newCtx\n    }\n  }\n];\n"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -2233,8 +2191,8 @@
         -3300,
         750
       ],
-      "id": "bbb102d4-1fe4-44c8-969c-78f715b5088a",
-      "name": "Patch Coordinates"
+      "id": "b8b678c1-9e4c-4ccb-8ede-84a1939780d5",
+      "name": "Resolve Coordinates"
     }
   ],
   "pinData": {
@@ -2942,7 +2900,7 @@
       "main": [
         [
           {
-            "node": "Geocode Address (OSM)",
+            "node": "Resolve Coordinates",
             "type": "main",
             "index": 0
           }
@@ -3357,18 +3315,7 @@
         ]
       ]
     },
-    "Geocode Address (OSM)": {
-      "main": [
-        [
-          {
-            "node": "Patch Coordinates",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Patch Coordinates": {
+    "Resolve Coordinates": {
       "main": [
         [
           {
