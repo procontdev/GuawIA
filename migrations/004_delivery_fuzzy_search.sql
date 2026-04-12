@@ -1,11 +1,10 @@
 -- ==========================================================
 -- Integración de pg_trgm para búsqueda borrosa de distritos
+-- Reparación de loop infinito por scoring de datos genéricos
 -- ==========================================================
 
--- 1. Habilitar extensión (requiere permisos en db, pero en Neon suele estar disponible)
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
--- 2. Actualizar la función V1 para utilizar similitud en lugar de match exacto
 CREATE OR REPLACE FUNCTION guaw.resolve_delivery_zone_v1(
     p_district TEXT,
     p_address TEXT,
@@ -27,11 +26,10 @@ DECLARE
     v_matched_keywords TEXT[] := '{}';
     v_district_sim_score REAL;
 BEGIN
-    -- Normalización simple
+    -- Normalización
     v_norm_district := lower(unaccent(coalesce(p_district, '')));
-    v_norm_combined := lower(unaccent(coalesce(p_address, '') || ' ' || coalesce(p_reference, '')));
+    v_norm_combined := lower(unaccent(trim(coalesce(p_address, '') || ' ' || coalesce(p_reference, ''))));
 
-    -- Iterar por zonas activas
     FOR v_zone IN 
         SELECT id, zone_name, district, reference_keywords, delivery_fee, eta_min, eta_max 
         FROM guaw.delivery_zones 
@@ -44,10 +42,6 @@ BEGIN
         v_district_sim_score := similarity(v_norm_district, lower(unaccent(v_zone.district)));
         
         IF v_district_sim_score > 0.6 THEN
-            -- Si p_district es exactamente igual = +50
-            -- Si es parecido (ej: Limce vs Lince = 0.8) suma proporcional
-            -- Para simplificar, si la similitud > 0.6, sumamos 50 para asegurar cobertura, o podríamos hacerlo progresivo.
-            -- Lo dejaremos en +50 si supera el umbral (typofriendly)
             v_current_score := v_current_score + 50;
         END IF;
 
@@ -60,6 +54,12 @@ BEGIN
                     v_matched_keywords := array_append(v_matched_keywords, v_keyword);
                 END IF;
             END LOOP;
+        ELSE
+            -- Si no hay keywords predefinidos en la zona, y el cliente provee una dirección,
+            -- asumimos que el distrito entero tiene cobertura genérica (+25 puntos extra).
+            IF length(v_norm_combined) > 3 THEN
+                v_current_score := v_current_score + 25;
+            END IF;
         END IF;
 
         -- Guardar la mejor zona encontrada
@@ -73,17 +73,24 @@ BEGIN
         END IF;
     END LOOP;
 
+    -- Si hubo match de distrito (50) pero no de keywords (score = 50),
+    -- y el usuario sí proveyó una dirección (lenght > 3), consideramos
+    -- que tiene sufieciente info aunque ninguna keyword coincidió.
+    -- Esto relaja las reglas exigentes previas para evitar bucles infinitos.
+    IF v_best_score = 50 AND length(v_norm_combined) > 3 THEN
+         -- Empujar el umbral por encima de 70 para aceptarlo
+         v_best_score := 75;
+    END IF;
+
     -- Determinación de status de cobertura
     IF v_best_score >= 70 THEN
         v_coverage_status := 'covered';
     ELSIF v_best_score >= 40 THEN
         v_coverage_status := 'insufficient_data';
     ELSE
-        -- Por defecto 'out_of_coverage' para el fail-fast
         v_coverage_status := 'out_of_coverage';
     END IF;
 
-    -- Retornar resultado estructurado
     RETURN jsonb_build_object(
         'matched', (v_best_score >= 40),
         'zone_id', v_best_zone_id,
