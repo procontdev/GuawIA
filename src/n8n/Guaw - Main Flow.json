@@ -47,7 +47,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const msg = $json.message ?? {};\nconst from = msg.from ?? {};\nconst chat = msg.chat ?? {};\n\nconst firstName = from.first_name ?? '';\nconst lastName = from.last_name ?? '';\nconst fullName = `${firstName} ${lastName}`.trim();\n\nreturn [\n  {\n    json: {\n      channel: 'telegram',\n      external_user_id: String(from.id ?? ''),\n      external_conversation_id: String(chat.id ?? ''),\n      message_text: msg.text ?? '',\n      full_name: fullName || from.username || 'Cliente Telegram',\n      username: from.username ?? null,\n      phone: null,\n      email: null,\n      notes: null,\n      telegram_chat_id: String(chat.id ?? ''),\n      telegram_message_id: msg.message_id ?? null,\n      raw_payload: $json,\n    }\n  }\n];"
+        "jsCode": "const msg = $json.message ?? {};\nconst from = msg.from ?? {};\nconst chat = msg.chat ?? {};\n\nconst firstName = from.first_name ?? '';\nconst lastName = from.last_name ?? '';\nconst fullName = `${firstName} ${lastName}`.trim();\n\n// Detectar si el mensaje es una ubicación (location pin de Telegram)\nconst location = msg.location ?? null;\nconst lat = location?.latitude ?? null;\nconst lng = location?.longitude ?? null;\n\n// Si es ubicación, generar un texto descriptivo para el clasificador de intención\nlet messageText = msg.text ?? '';\nif (location && !messageText) {\n  messageText = `[UBICACION_COMPARTIDA] lat:${lat} lng:${lng}`;\n}\n\nreturn [\n  {\n    json: {\n      channel: 'telegram',\n      external_user_id: String(from.id ?? ''),\n      external_conversation_id: String(chat.id ?? ''),\n      message_text: messageText,\n      full_name: fullName || from.username || 'Cliente Telegram',\n      username: from.username ?? null,\n      phone: null,\n      email: null,\n      notes: null,\n      telegram_chat_id: String(chat.id ?? ''),\n      telegram_message_id: msg.message_id ?? null,\n      raw_payload: $json,\n      // Coordenadas de ubicación (si el usuario envió su pin)\n      location_lat: lat,\n      location_lng: lng,\n      is_location_message: location !== null,\n    }\n  }\n];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -443,6 +443,24 @@
               "name": "conversation_id",
               "value": "={{ $node[\"Merge Conversation\"].json[\"id\"] }}",
               "type": "string"
+            },
+            {
+              "id": "loc-lat-001",
+              "name": "location_lat",
+              "value": "={{ $json.location_lat ?? null }}",
+              "type": "string"
+            },
+            {
+              "id": "loc-lng-001",
+              "name": "location_lng",
+              "value": "={{ $json.location_lng ?? null }}",
+              "type": "string"
+            },
+            {
+              "id": "loc-flag-001",
+              "name": "is_location_message",
+              "value": "={{ $json.is_location_message ?? false }}",
+              "type": "boolean"
             }
           ]
         },
@@ -704,6 +722,24 @@
               "name": "channel",
               "value": "={{ $('Merge Conversation').item.json.channel }}",
               "type": "string"
+            },
+            {
+              "id": "loc-lat-002",
+              "name": "location_lat",
+              "value": "={{ $json.location_lat ?? null }}",
+              "type": "string"
+            },
+            {
+              "id": "loc-lng-002",
+              "name": "location_lng",
+              "value": "={{ $json.location_lng ?? null }}",
+              "type": "string"
+            },
+            {
+              "id": "loc-flag-002",
+              "name": "is_location_message",
+              "value": "={{ $json.is_location_message ?? false }}",
+              "type": "boolean"
             }
           ]
         },
