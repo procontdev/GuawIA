@@ -47,7 +47,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const msg = $json.message ?? {};\nconst from = msg.from ?? {};\nconst chat = msg.chat ?? {};\n\nconst firstName = from.first_name ?? '';\nconst lastName = from.last_name ?? '';\nconst fullName = `${firstName} ${lastName}`.trim();\n\n// Detectar si el mensaje es una ubicación (location pin de Telegram)\nconst location = msg.location ?? null;\nconst lat = location?.latitude ?? null;\nconst lng = location?.longitude ?? null;\n\n// Si es ubicación, generar un texto descriptivo para el clasificador de intención\nlet messageText = msg.text ?? '';\nif (location && !messageText) {\n  messageText = `[UBICACION_COMPARTIDA] lat:${lat} lng:${lng}`;\n}\n\nreturn [\n  {\n    json: {\n      channel: 'telegram',\n      external_user_id: String(from.id ?? ''),\n      external_conversation_id: String(chat.id ?? ''),\n      message_text: messageText,\n      full_name: fullName || from.username || 'Cliente Telegram',\n      username: from.username ?? null,\n      phone: null,\n      email: null,\n      notes: null,\n      telegram_chat_id: String(chat.id ?? ''),\n      telegram_message_id: msg.message_id ?? null,\n      raw_payload: $json,\n      // Coordenadas de ubicación (si el usuario envió su pin)\n      location_lat: lat,\n      location_lng: lng,\n      is_location_message: location !== null,\n    }\n  }\n];"
+        "jsCode": "const msg = $json.message ?? {};\nconst from = msg.from ?? {};\nconst chat = msg.chat ?? {};\n\nconst firstName = from.first_name ?? '';\nconst lastName = from.last_name ?? '';\nconst fullName = `${firstName} ${lastName}`.trim();\n\nconst location = msg.location ?? null;\nconst lat = location?.latitude ?? null;\nconst lng = location?.longitude ?? null;\nconst locationSharedAt = location ? new Date((msg.date ?? Math.floor(Date.now() / 1000)) * 1000).toISOString() : null;\n\nconst messageText = typeof msg.text === 'string' ? msg.text : '';\n\nreturn [\n  {\n    json: {\n      channel: 'telegram',\n      external_user_id: String(from.id ?? ''),\n      external_conversation_id: String(chat.id ?? ''),\n      message_text: messageText,\n      full_name: fullName || from.username || 'Cliente Telegram',\n      username: from.username ?? null,\n      phone: null,\n      email: null,\n      notes: null,\n      telegram_chat_id: String(chat.id ?? ''),\n      telegram_message_id: msg.message_id ?? null,\n      raw_payload: $json,\n      location_lat: lat,\n      location_lng: lng,\n      is_location_message: location !== null,\n      location_shared_at: locationSharedAt,\n      lat,\n      lng,\n    }\n  }\n];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -461,6 +461,24 @@
               "name": "is_location_message",
               "value": "={{ $json.is_location_message ?? false }}",
               "type": "boolean"
+            },
+            {
+              "id": "auto-ff430bea-3ac8-4c44-a533-0ce44df12eff-location_shared_at",
+              "name": "location_shared_at",
+              "value": "={{ $json.location_shared_at ?? null }}",
+              "type": "string"
+            },
+            {
+              "id": "auto-ff430bea-3ac8-4c44-a533-0ce44df12eff-lat",
+              "name": "lat",
+              "value": "={{ $json.location_lat ?? null }}",
+              "type": "string"
+            },
+            {
+              "id": "auto-ff430bea-3ac8-4c44-a533-0ce44df12eff-lng",
+              "name": "lng",
+              "value": "={{ $json.location_lng ?? null }}",
+              "type": "string"
             }
           ]
         },
@@ -477,7 +495,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const currentFlow = $json.current_flow;\nconst currentStep = $json.current_step;\nconst messageText = ($node[\"Normalize Input\"].json[\"message_text\"] || '').trim().toLowerCase();\nconst isLocationMessage = $node[\"Normalize Input\"].json[\"is_location_message\"] === true;\n\nconst terminalSteps = [\n  'start',\n  'completed',\n  'order_confirmed',\n  'event_lead_registered',\n  'cancelled'\n];\n\nconst resetWords = [\n  'hola',\n  'buenas',\n  'hello',\n  'hi',\n  'menu',\n  'menú',\n  'quiero ver la carta',\n  'atienden eventos',\n  'info de eventos',\n  'quiero cotizar un evento',\n  'eventos'\n];\n\n// Las ubicaciones GPS NUNCA son un reset - siempre son parte del flujo activo\nconst looksLikeFreshStart = !isLocationMessage && resetWords.some(w => messageText.includes(w));\n\nconst hasPendingDeliveryStep =\n  currentFlow === 'delivery' &&\n  currentStep &&\n  !terminalSteps.includes(currentStep);\n\nconst hasPendingEventsStep =\n  currentFlow === 'events' &&\n  currentStep &&\n  !terminalSteps.includes(currentStep);\n\nlet routeMode = 'classify';\n\nif (!looksLikeFreshStart && hasPendingDeliveryStep) {\n  routeMode = 'delivery_context';\n} else if (!looksLikeFreshStart && hasPendingEventsStep) {\n  routeMode = 'events_context';\n} else if (isLocationMessage) {\n  // Si no hay flujo activo pero mandaron ubicación, asumimos delivery\n  routeMode = 'classify';\n}\n\nreturn [\n  {\n    json: {\n      ...$json,\n      route_mode: routeMode\n    }\n  }\n];"
+        "jsCode": "const currentFlow = $json.current_flow;\nconst currentStep = $json.current_step;\nconst messageText = ($node[\"Normalize Input\"].json[\"message_text\"] || '').trim().toLowerCase();\nconst isLocationMessage = $node[\"Normalize Input\"].json[\"is_location_message\"] === true;\n\nconst terminalSteps = [\n  'start',\n  'completed',\n  'order_confirmed',\n  'event_lead_registered',\n  'cancelled'\n];\n\nconst resetWords = [\n  'hola',\n  'buenas',\n  'hello',\n  'hi',\n  'menu',\n  'menú',\n  'quiero ver la carta',\n  'atienden eventos',\n  'info de eventos',\n  'quiero cotizar un evento',\n  'eventos'\n];\n\nconst looksLikeFreshStart = !isLocationMessage && resetWords.some(w => messageText.includes(w));\n\nconst hasPendingDeliveryStep =\n  currentFlow === 'delivery' &&\n  currentStep &&\n  !terminalSteps.includes(currentStep);\n\nconst hasPendingEventsStep =\n  currentFlow === 'events' &&\n  currentStep &&\n  !terminalSteps.includes(currentStep);\n\nlet routeMode = 'classify';\n\nif (isLocationMessage) {\n  routeMode = 'delivery_location';\n} else if (!looksLikeFreshStart && hasPendingDeliveryStep) {\n  routeMode = 'delivery_context';\n} else if (!looksLikeFreshStart && hasPendingEventsStep) {\n  routeMode = 'events_context';\n}\n\nreturn [\n  {\n    json: {\n      ...$json,\n      route_mode: routeMode\n    }\n  }\n];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -492,6 +510,30 @@
       "parameters": {
         "rules": {
           "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "delivery-location-route",
+                    "leftValue": "={{ $json.route_mode }}",
+                    "rightValue": "delivery_location",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "delivery_location"
+            },
             {
               "conditions": {
                 "options": {
@@ -740,6 +782,24 @@
               "name": "is_location_message",
               "value": "={{ $json.is_location_message ?? false }}",
               "type": "boolean"
+            },
+            {
+              "id": "auto-de5c7413-6a48-4f13-a05c-ab5b87bd3d40-location_shared_at",
+              "name": "location_shared_at",
+              "value": "={{ $json.location_shared_at ?? null }}",
+              "type": "string"
+            },
+            {
+              "id": "auto-de5c7413-6a48-4f13-a05c-ab5b87bd3d40-lat",
+              "name": "lat",
+              "value": "={{ $json.location_lat ?? null }}",
+              "type": "string"
+            },
+            {
+              "id": "auto-de5c7413-6a48-4f13-a05c-ab5b87bd3d40-lng",
+              "name": "lng",
+              "value": "={{ $json.location_lng ?? null }}",
+              "type": "string"
             }
           ]
         },
@@ -1331,6 +1391,13 @@
     },
     "Switch": {
       "main": [
+        [
+          {
+            "node": "Save Incoming Message - Context",
+            "type": "main",
+            "index": 0
+          }
+        ],
         [
           {
             "node": "Save Incoming Message - Context",

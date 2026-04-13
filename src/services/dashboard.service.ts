@@ -14,7 +14,7 @@ export function getTotalSalesAmount(orders: Order[]): number {
 
 function buildMetricsFromMocks(): DashboardMetrics {
   const activeOrders = mockOrders.filter((o) => o.status !== "entregado").length;
-  const newOrders = mockOrders.filter((o) => o.status === "nuevo").length;
+  const newOrders = mockOrders.filter((o) => o.status === "por_confirmar").length;
   const preparingOrders = mockOrders.filter((o) => o.status === "preparacion").length;
   const readyOrders = mockOrders.filter((o) => o.status === "listo").length;
   const deliveredOrders = mockOrders.filter((o) => o.status === "entregado").length;

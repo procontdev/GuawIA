@@ -547,11 +547,15 @@ export default function KitchenBoardPage() {
 
   const processIncomingOrders = useCallback(
     async (data: Order[]) => {
-      const kitchenData = data.filter((order) => isKitchenStatus(order.status));
+      const kitchenData = data.filter(
+        (order): order is Order & { status: KitchenStatus } =>
+          isKitchenStatus(order.status)
+      );
 
       const nextStatusMap: Partial<Record<string, KitchenStatus>> = {};
       kitchenData.forEach((order) => {
-        nextStatusMap[order.id] = order.status;
+        const nextStatus = order.status;
+        nextStatusMap[order.id] = nextStatus;
       });
 
       if (initializedRef.current) {
