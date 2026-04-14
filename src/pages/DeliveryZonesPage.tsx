@@ -30,6 +30,7 @@ import {
   toggleZoneStatus
 } from "@/services/deliveryZones.service";
 import type { DeliveryZone, CreateDeliveryZoneInput } from "@/types/deliveryZone.types";
+import { ZoneLocationPicker } from "@/components/delivery/ZoneLocationPicker";
 
 export default function DeliveryZonesPage() {
   const [zones, setZones] = useState<DeliveryZone[]>([]);
@@ -49,6 +50,11 @@ export default function DeliveryZonesPage() {
     etaMax: 45,
     isActive: true,
     isDefault: false,
+    centerLat: null,
+    centerLng: null,
+    radiusMeters: null,
+    priority: 0,
+    matchMode: 'hybrid',
   });
   const [newKeyword, setNewKeyword] = useState("");
 
@@ -86,6 +92,11 @@ export default function DeliveryZonesPage() {
         etaMax: zone.etaMax,
         isActive: zone.isActive,
         isDefault: zone.isDefault,
+        centerLat: zone.centerLat,
+        centerLng: zone.centerLng,
+        radiusMeters: zone.radiusMeters,
+        priority: zone.priority,
+        matchMode: zone.matchMode,
       });
     } else {
       setEditingZone(null);
@@ -98,6 +109,11 @@ export default function DeliveryZonesPage() {
         etaMax: 45,
         isActive: true,
         isDefault: false,
+        centerLat: null,
+        centerLng: null,
+        radiusMeters: null,
+        priority: 0,
+        matchMode: 'hybrid',
       });
     }
     setIsModalOpen(true);
@@ -149,7 +165,7 @@ export default function DeliveryZonesPage() {
         z.id === zone.id ? { ...z, isActive: !z.isActive } : z
       ));
       toast.success(`Zona ${!zone.isActive ? 'activada' : 'desactivada'}`);
-    } catch (error) {
+    } catch {
       toast.error("Error al cambiar estado");
     }
   };
@@ -171,6 +187,14 @@ export default function DeliveryZonesPage() {
     setFormData(prev => ({
       ...prev,
       referenceKeywords: prev.referenceKeywords.filter(k => k !== kw)
+    }));
+  };
+
+  const handleLocationChange = (lat: number, lng: number) => {
+    setFormData(prev => ({
+      ...prev,
+      centerLat: lat,
+      centerLng: lng,
     }));
   };
 
@@ -375,8 +399,8 @@ export default function DeliveryZonesPage() {
                       {formData.referenceKeywords.map((kw, i) => (
                         <Badge key={i} className="rounded-lg py-1 pl-2 pr-1 flex items-center gap-1 bg-slate-100 text-slate-700 border-slate-200">
                           {kw}
-                          <button 
-                            type="button" 
+                          <button
+                            type="button"
                             onClick={() => removeKeyword(kw)}
                             className="p-0.5 hover:bg-slate-200 rounded-md transition-colors"
                           >
@@ -388,6 +412,51 @@ export default function DeliveryZonesPage() {
                         <p className="text-xs text-slate-400 italic">No hay palabras clave configuradas.</p>
                       )}
                     </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <label className="text-sm font-medium text-slate-700">Configuración de Geolocalización</label>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <label className="text-xs text-slate-600">Latitud Centro</label>
+                        <Input
+                          type="number"
+                          step="0.000001"
+                          placeholder="-12.0464"
+                          className="rounded-xl"
+                          value={formData.centerLat || ''}
+                          onChange={e => setFormData(prev => ({ ...prev, centerLat: e.target.value ? Number(e.target.value) : null }))}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-xs text-slate-600">Longitud Centro</label>
+                        <Input
+                          type="number"
+                          step="0.000001"
+                          placeholder="-77.0428"
+                          className="rounded-xl"
+                          value={formData.centerLng || ''}
+                          onChange={e => setFormData(prev => ({ ...prev, centerLng: e.target.value ? Number(e.target.value) : null }))}
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs text-slate-600">Radio (metros)</label>
+                      <Input
+                        type="number"
+                        step="10"
+                        placeholder="1000"
+                        className="rounded-xl"
+                        value={formData.radiusMeters || ''}
+                        onChange={e => setFormData(prev => ({ ...prev, radiusMeters: e.target.value ? Number(e.target.value) : null }))}
+                      />
+                    </div>
+                    <ZoneLocationPicker
+                      lat={formData.centerLat}
+                      lng={formData.centerLng}
+                      radius={formData.radiusMeters}
+                      onChange={handleLocationChange}
+                    />
                   </div>
 
                   <div className="flex items-center gap-2 pt-2">

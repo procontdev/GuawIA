@@ -7,7 +7,7 @@ import type {
 
 // --- Normalizers ---
 
-function normalizeZone(dbZone: any): DeliveryZone {
+function normalizeZone(dbZone: Record<string, unknown>): DeliveryZone {
   return {
     id: dbZone.id,
     zoneName: dbZone.zone_name,
@@ -18,14 +18,19 @@ function normalizeZone(dbZone: any): DeliveryZone {
     etaMax: dbZone.eta_max,
     isActive: dbZone.is_active,
     isDefault: dbZone.is_default,
+    centerLat: dbZone.center_lat,
+    centerLng: dbZone.center_lng,
+    radiusMeters: dbZone.radius_meters,
+    priority: dbZone.priority || 0,
+    matchMode: dbZone.match_mode || 'hybrid',
     createdAt: dbZone.created_at,
     updatedAt: dbZone.updated_at,
   };
 }
 
-function denormalizeZone(zone: CreateDeliveryZoneInput | UpdateDeliveryZoneInput): any {
-  const result: any = {};
-  
+function denormalizeZone(zone: CreateDeliveryZoneInput | UpdateDeliveryZoneInput): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+
   if (zone.zoneName !== undefined) result.zone_name = zone.zoneName;
   if (zone.district !== undefined) result.district = zone.district;
   if (zone.referenceKeywords !== undefined) result.reference_keywords = zone.referenceKeywords;
@@ -34,7 +39,12 @@ function denormalizeZone(zone: CreateDeliveryZoneInput | UpdateDeliveryZoneInput
   if (zone.etaMax !== undefined) result.eta_max = zone.etaMax;
   if (zone.isActive !== undefined) result.is_active = zone.isActive;
   if (zone.isDefault !== undefined) result.is_default = zone.isDefault;
-  
+  if (zone.centerLat !== undefined) result.center_lat = zone.centerLat;
+  if (zone.centerLng !== undefined) result.center_lng = zone.centerLng;
+  if (zone.radiusMeters !== undefined) result.radius_meters = zone.radiusMeters;
+  if (zone.priority !== undefined) result.priority = zone.priority;
+  if (zone.matchMode !== undefined) result.match_mode = zone.matchMode;
+
   return result;
 }
 

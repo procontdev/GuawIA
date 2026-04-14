@@ -8,6 +8,11 @@ export interface DeliveryZone {
   etaMax: number | null;
   isActive: boolean;
   isDefault: boolean;
+  centerLat: number | null;
+  centerLng: number | null;
+  radiusMeters: number | null;
+  priority: number;
+  matchMode: 'text' | 'geo_radius' | 'hybrid';
   createdAt?: string;
   updatedAt?: string;
 }
